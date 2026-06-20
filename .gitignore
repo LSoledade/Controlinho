@@ -1,0 +1,9 @@
+# Build artifacts
+pc-remote.exe
+pc-remote
+*.exe
+
+# Local CA — NEVER commit the private key (anyone with it can issue trusted
+# certs for your phone). The cert is regenerated on first run.
+pc-remote-ca.crt
+pc-remote-ca.key

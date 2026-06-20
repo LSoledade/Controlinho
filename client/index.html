@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PC Remote">
+<meta name="theme-color" content="#0b0d12">
+<title>PC Remote</title>
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<style>
+  :root {
+    --bg: #0b0d12; --bg-1: #12151d; --bg-2: #181c26; --bg-3: #20252f;
+    --fg: #eef1f6; --fg-dim: #9aa3b4; --fg-faint: #5f6776;
+    --accent: #5b9dff; --accent-press: #4585ee;
+    --danger: #ff6b6b; --danger-press: #e85555;
+    --good: #44d07b; --warn: #ffc24b;
+    --border: #262c39; --border-soft: #1d222d;
+    --r-sm: 10px; --r: 13px; --r-lg: 18px;
+    --shadow: 0 6px 20px rgba(0,0,0,.35); --shadow-sm: 0 2px 8px rgba(0,0,0,.25);
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    font-size: 16px; -webkit-user-select: none; user-select: none;
+    overflow: hidden; touch-action: none; -webkit-font-smoothing: antialiased;
+  }
+  .ico { width: 1.4em; height: 1.4em; flex: 0 0 auto; vertical-align: -0.28em;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+
+  /* top bar */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: calc(54px + var(--safe-t)); padding: var(--safe-t) 12px 0;
+    display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(180deg, #141823, var(--bg-1));
+    border-bottom: 1px solid var(--border-soft); z-index: 20;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; }
+  .brand .ico { width: 22px; height: 22px; color: var(--accent); }
+  .spacer { flex: 1 1 auto; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg-dim);
+    font-weight: 500; background: var(--bg-2); border: 1px solid var(--border-soft);
+    padding: 6px 10px; border-radius: 999px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger);
+    box-shadow: 0 0 0 0 currentColor; transition: background .25s, color .25s; }
+  .dot.connecting { background: var(--warn); color: var(--warn); animation: pulse 1.2s infinite; }
+  .dot.online { background: var(--good); color: var(--good); }
+  .dot.offline { background: var(--danger); color: var(--danger); }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 currentColor} 70%{box-shadow:0 0 0 5px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+  .install-pill { display: none; align-items: center; gap: 6px; height: 36px; min-height: 0; padding: 0 13px;
+    border: none; border-radius: 999px; color: #fff; font-size: 13px; font-weight: 650; cursor: pointer;
+    background: linear-gradient(180deg, var(--good), #36b96a); box-shadow: 0 3px 12px rgba(68,208,123,.35);
+    animation: bob 2.4s ease-in-out infinite; }
+  .install-pill.show { display: inline-flex; }
+  .install-pill .ico { width: 17px; height: 17px; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-2px)} }
+  .icon-btn { display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px; min-height: 0; padding: 0; background: var(--bg-2); color: var(--fg-dim);
+    border: 1px solid var(--border-soft); border-radius: 11px; cursor: pointer; }
+  .icon-btn .ico { width: 20px; height: 20px; }
+  .icon-btn:active { background: var(--bg-3); }
+
+  /* install banner (HTTP setup only) */
+  .install-banner { position: fixed; left: 0; right: 0; top: calc(54px + var(--safe-t));
+    background: linear-gradient(180deg, #1a2233, var(--bg-1)); border-bottom: 1px solid var(--border);
+    padding: 14px; z-index: 18; display: none; box-shadow: var(--shadow-sm); }
+  .install-banner.show { display: block; }
+  .install-banner .head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .install-banner .head .ico { width: 20px; height: 20px; color: var(--accent); }
+  .install-banner h4 { margin: 0; font-size: 14.5px; font-weight: 650; }
+  .install-banner p { margin: 0 0 12px; font-size: 12.5px; color: var(--fg-dim); line-height: 1.5; }
+  .install-banner .row { display: flex; gap: 9px; }
+  .install-banner a { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 8px;
+    text-decoration: none; font-size: 13px; font-weight: 550; min-height: 44px; padding: 0 12px;
+    border-radius: 12px; border: 1px solid var(--border); color: var(--fg); background: var(--bg-2); }
+  .install-banner a .ico { width: 18px; height: 18px; }
+  .install-banner a.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .install-banner .close-x { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+    min-height: 0; padding: 0; background: transparent; border: none; color: var(--fg-faint);
+    display: flex; align-items: center; justify-content: center; }
+  .install-banner .close-x .ico { width: 18px; height: 18px; }
+
+  /* main / tabs — no scroll: each tab fills the viewport */
+  main { position: fixed; top: calc(54px + var(--safe-t)); bottom: calc(64px + var(--safe-b));
+    left: 0; right: 0; overflow: hidden; }
+  .tab { display: none; height: 100%; padding: 12px; }
+  .tab.active { display: flex; flex-direction: column; gap: 8px; animation: fade .18s ease; }
+  @keyframes fade { from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none} }
+
+  .section-title { flex: 0 0 auto; font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--fg-faint); font-weight: 650; margin: 4px 2px 1px; }
+
+  /* buttons */
+  button { font-family: inherit; font-size: 15px; font-weight: 550; color: var(--fg); background: var(--bg-2);
+    border: 1px solid var(--border-soft); border-radius: var(--r); padding: 10px 12px; min-height: 48px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+    transition: background .1s, transform .06s, border-color .12s, box-shadow .12s; }
+  button:active { transform: scale(.96); background: var(--bg-3); }
+  button.primary { background: linear-gradient(180deg, var(--accent), var(--accent-press)); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(91,157,255,.3); }
+  button.primary:active { background: var(--accent-press); }
+  button.danger { background: var(--danger); border-color: transparent; color: #fff; }
+  button.danger:active { background: var(--danger-press); }
+  button.ghost { background: transparent; }
+  button .ico { width: 22px; height: 22px; }
+  .stack { flex-direction: column; gap: 4px; }
+  .stack .lbl { font-size: 11px; font-weight: 600; color: var(--fg-dim); }
+  button.toggle.on { background: linear-gradient(180deg, var(--accent), var(--accent-press)); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(91,157,255,.3); }
+
+  /* fill helpers — make rows share the viewport, no scroll */
+  .grid { display: grid; gap: 8px; }
+  .grid.c2 { grid-template-columns: repeat(2, 1fr); }
+  .grid.c3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.c4 { grid-template-columns: repeat(4, 1fr); }
+  .fill { flex: 1 1 0; min-height: 0; }
+  .fill.f2 { flex-grow: 2; } .fill.f3 { flex-grow: 3; }
+  .grid.fill { grid-auto-rows: 1fr; }
+  .fill button, button.fill { min-height: 0; height: 100%; }
+  .fill .ico, button.fill .ico { width: 24px; height: 24px; }
+
+  /* trackpad */
+  .pad-wrap { flex: 1 1 auto; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .pad { flex: 1 1 auto; position: relative; overflow: hidden; border-radius: var(--r-lg);
+    border: 1px solid var(--border); min-height: 0;
+    background: radial-gradient(120% 80% at 50% 0%, #1a2030 0%, var(--bg-1) 60%), var(--bg-1);
+    transition: border-color .18s, box-shadow .18s; }
+  .pad .hint { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: var(--fg-faint);
+    font-size: 12px; padding: 0 24px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 7px; }
+  .pad .hint .ico { width: 26px; height: 26px; opacity: .5; }
+  .pad.dragging { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 0 26px rgba(91,157,255,.22); }
+  .pad.dragging .hint { color: var(--accent); }
+  .mouse-buttons { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr 1.25fr; gap: 8px; }
+  .mouse-buttons button { min-height: 56px; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; }
+  .mouse-buttons button .ico { width: 22px; height: 22px; }
+
+  /* D-pad */
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .dpad .empty { visibility: hidden; }
+
+  /* inputs */
+  .text-input { width: 100%; padding: 13px; font-size: 16px; background: var(--bg-1); color: var(--fg);
+    border: 1px solid var(--border); border-radius: var(--r); min-height: 48px; }
+  .text-input:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; gap: 10px; align-items: stretch; flex: 0 0 auto; }
+  .row > * { flex: 1 1 auto; }
+  .row .shrink { flex: 0 0 auto; }
+  .field-label { font-size: 13px; color: var(--fg-dim); margin: 4px 2px; }
+  .field-label b { color: var(--accent); font-weight: 650; }
+  input[type=range].slider { width: 100%; -webkit-appearance: none; appearance: none; height: 38px; background: transparent; }
+  input[type=range].slider::-webkit-slider-runnable-track { height: 6px; background: var(--bg-3); border-radius: 3px; }
+  input[type=range].slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px;
+    margin-top: -10px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg-1); box-shadow: var(--shadow-sm); }
+
+  /* tab bar */
+  .tabbar { position: fixed; bottom: 0; left: 0; right: 0; height: calc(64px + var(--safe-b));
+    padding-bottom: var(--safe-b); background: linear-gradient(0deg, #10131b, var(--bg-1));
+    border-top: 1px solid var(--border-soft); display: grid; grid-template-columns: repeat(4, 1fr); z-index: 20; }
+  .tabbar button { background: transparent; border: none; border-radius: 0; min-height: 0; padding: 7px 4px 5px;
+    flex-direction: column; gap: 3px; font-size: 10.5px; font-weight: 600; color: var(--fg-faint); position: relative; transition: color .15s; }
+  .tabbar button .ico { width: 24px; height: 24px; }
+  .tabbar button.active { color: var(--accent); }
+  .tabbar button.active::before { content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 3px; border-radius: 0 0 4px 4px; background: var(--accent); }
+
+  /* modal */
+  .modal-bg { position: fixed; inset: 0; background: rgba(4,6,10,.62);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px; }
+  .modal-bg.show { display: flex; animation: fade .15s ease; }
+  .modal { background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 22px; max-width: 410px; width: 100%; box-shadow: var(--shadow); }
+  .modal h3 { margin: 0 0 14px; font-size: 18px; display: flex; align-items: center; gap: 9px; }
+  .modal h3 .ico { width: 22px; height: 22px; color: var(--accent); }
+  .modal p { margin: 0 0 14px; color: var(--fg-dim); font-size: 14px; line-height: 1.45; }
+  .modal .row { margin-top: 16px; }
+
+  .toast { position: fixed; bottom: calc(82px + var(--safe-b)); left: 50%; transform: translateX(-50%);
+    background: rgba(24,28,38,.96); color: var(--fg); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 11px 16px; font-size: 14px; z-index: 60; opacity: 0;
+    transition: opacity .25s, transform .25s; pointer-events: none; max-width: 90vw; text-align: center;
+    display: flex; align-items: center; gap: 9px; }
+  .toast .ico { width: 18px; height: 18px; color: var(--accent); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+</style>
+</head>
+<body>
+
+<!-- ICON SPRITE -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-cursor" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M3.5 2.7l15.6 6.3c.6.25.6 1.1-.02 1.3l-6.2 2.35a1 1 0 0 0-.58.58l-2.35 6.2c-.22.6-1.06.6-1.3.02z"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3" fill="none" stroke="currentColor"/><circle cx="18" cy="16" r="3" fill="none" stroke="currentColor"/></symbol>
+  <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2.5" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M6 9h0M10 9h0M14 9h0M18 9h0M6 13h0M18 13h0M9 13h6"/></symbol>
+  <symbol id="i-power" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M12 2v10"/><path fill="none" stroke="currentColor" d="M18.36 6.64a9 9 0 1 1-12.73 0"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M4 7h9M17 7h3M4 17h3M11 17h9"/><path fill="none" stroke="currentColor" d="M15 5v4M8 15v4"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M20 5v14l-11-7z"/><path fill="none" stroke="currentColor" d="M5 5v14"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M4 5v14l11-7z"/><path fill="none" stroke="currentColor" d="M19 5v14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M7 4v16l13-8z"/></symbol>
+  <symbol id="i-vol-down" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11 5L6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4z"/><path fill="none" stroke="currentColor" d="M15.5 9a4.5 4.5 0 0 1 0 6"/></symbol>
+  <symbol id="i-vol-up" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11 5L6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4z"/><path fill="none" stroke="currentColor" d="M15.5 9a4.5 4.5 0 0 1 0 6"/><path fill="none" stroke="currentColor" d="M18.7 6a9 9 0 0 1 0 12"/></symbol>
+  <symbol id="i-vol-mute" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11 5L6 9H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3l5 4z"/><path fill="none" stroke="currentColor" d="M22 9l-6 6M16 9l6 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-fwd" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M9 18l6-6-6-6"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M22 2L11 13"/><path fill="none" stroke="currentColor" d="M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M12 5v14M19 12l-7 7-7-7"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M5 12h14M12 5l7 7-7 7"/></symbol>
+  <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2.5" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M8 21h8M12 17v4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></symbol>
+  <symbol id="i-restart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path fill="none" stroke="currentColor" d="M21 3v5h-5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path fill="none" stroke="currentColor" d="M7 10l5 5 5-5M12 15V3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2.5" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M11 18h2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M18 6L6 18M6 6l12 12"/></symbol>
+  <symbol id="i-plus-sq" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M12 8v8M8 12h8"/></symbol>
+  <symbol id="i-left-click" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="7" fill="none" stroke="currentColor"/><path fill="currentColor" stroke="none" d="M11.4 3.05A6 6 0 0 0 6 9v1.4h5.4z"/><path fill="none" stroke="currentColor" d="M12 2v8"/></symbol>
+  <symbol id="i-right-click" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="7" fill="none" stroke="currentColor"/><path fill="currentColor" stroke="none" d="M12.6 3.05A6 6 0 0 1 18 9v1.4h-5.4z"/><path fill="none" stroke="currentColor" d="M12 2v8"/></symbol>
+  <symbol id="i-mid-click" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="7" fill="none" stroke="currentColor"/><rect x="11" y="6" width="2" height="4" rx="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-move" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M20 6L9 17l-5-5"/></symbol>
+</defs></svg>
+
+<div class="topbar">
+  <span class="brand"><svg class="ico"><use href="#i-monitor"/></svg> PC Remote</span>
+  <span class="spacer"></span>
+  <button class="install-pill" id="installBtn" type="button"><svg class="ico"><use href="#i-download"/></svg> Instalar</button>
+  <span class="chip"><span id="dot" class="dot offline"></span><span id="statusText">desconectado</span></span>
+  <button class="icon-btn" id="ipBtn" type="button" aria-label="Ajustes"><svg class="ico"><use href="#i-settings"/></svg></button>
+</div>
+
+<!-- INSTALL / HTTPS SETUP BANNER (only on the insecure HTTP origin) -->
+<div class="install-banner" id="installBanner">
+  <button class="close-x" id="bannerClose" type="button" aria-label="Fechar"><svg class="ico"><use href="#i-x"/></svg></button>
+  <div class="head"><svg class="ico"><use href="#i-phone"/></svg><h4>Instalar como app</h4></div>
+  <p>Para instalar no Android, o Chrome precisa de HTTPS confiável. Faça uma vez: baixe o certificado, instale em <b>Ajustes → Segurança → Instalar certificado → Certificado CA</b> e abra a versão segura.</p>
+  <div class="row">
+    <a id="bannerCa" href="/ca.crt"><svg class="ico"><use href="#i-download"/></svg> Certificado</a>
+    <a id="bannerHttps" class="primary" href="#"><svg class="ico"><use href="#i-lock"/></svg> Versão segura</a>
+  </div>
+</div>
+
+<main>
+
+  <!-- TAB: TRACKPAD -->
+  <section class="tab" data-tab="trackpad">
+    <div class="pad-wrap">
+      <div class="pad" id="pad">
+        <div class="hint"><svg class="ico"><use href="#i-cursor"/></svg>Toque = clique · 2 dedos = direito · arraste 2 dedos = rolar</div>
+      </div>
+      <div class="mouse-buttons">
+        <button type="button" data-click="left" class="stack"><svg class="ico"><use href="#i-left-click"/></svg><span class="lbl">Esquerdo</span></button>
+        <button type="button" data-click="middle" class="stack"><svg class="ico"><use href="#i-mid-click"/></svg><span class="lbl">Meio</span></button>
+        <button type="button" data-click="right" class="stack"><svg class="ico"><use href="#i-right-click"/></svg><span class="lbl">Direito</span></button>
+        <button type="button" class="toggle stack" id="dragToggle"><svg class="ico"><use href="#i-move"/></svg><span class="lbl">Arrastar</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB: MÍDIA & VOLUME -->
+  <section class="tab" data-tab="media">
+    <div class="section-title">Reprodução</div>
+    <div class="grid c3 fill">
+      <button type="button" data-media="prev" aria-label="Anterior"><svg class="ico"><use href="#i-prev"/></svg></button>
+      <button class="primary" type="button" data-media="play_pause" aria-label="Play/Pause"><svg class="ico"><use href="#i-play"/></svg></button>
+      <button type="button" data-media="next" aria-label="Próxima"><svg class="ico"><use href="#i-next"/></svg></button>
+    </div>
+    <div class="section-title">Volume</div>
+    <div class="grid c3 fill">
+      <button type="button" data-volume="down" aria-label="Abaixar volume"><svg class="ico"><use href="#i-vol-down"/></svg></button>
+      <button type="button" data-volume="mute" aria-label="Mudo"><svg class="ico"><use href="#i-vol-mute"/></svg></button>
+      <button type="button" data-volume="up" aria-label="Aumentar volume"><svg class="ico"><use href="#i-vol-up"/></svg></button>
+    </div>
+    <div class="section-title">Navegador</div>
+    <div class="grid c2 fill">
+      <button type="button" data-key="browserback"><svg class="ico"><use href="#i-back"/></svg> Voltar</button>
+      <button type="button" data-key="browserforward">Avançar <svg class="ico"><use href="#i-fwd"/></svg></button>
+    </div>
+  </section>
+
+  <!-- TAB: TECLADO / ATALHOS -->
+  <section class="tab" data-tab="keyboard">
+    <div class="row">
+      <input class="text-input" id="typeInput" type="text" placeholder="Digitar texto no PC" enterkeyhint="send" autocapitalize="sentences">
+      <button class="primary shrink" id="typeSend" type="button" aria-label="Enviar"><svg class="ico"><use href="#i-send"/></svg></button>
+    </div>
+    <div class="section-title">Atalhos</div>
+    <div class="grid c3 fill f3">
+      <button type="button" data-shortcut='["ctrl","c"]'>Ctrl+C</button>
+      <button type="button" data-shortcut='["ctrl","v"]'>Ctrl+V</button>
+      <button type="button" data-shortcut='["ctrl","x"]'>Ctrl+X</button>
+      <button type="button" data-shortcut='["ctrl","z"]'>Ctrl+Z</button>
+      <button type="button" data-shortcut='["ctrl","a"]'>Ctrl+A</button>
+      <button type="button" data-shortcut='["ctrl","w"]'>Ctrl+W</button>
+      <button type="button" data-shortcut='["alt","f4"]'>Alt+F4</button>
+      <button type="button" data-shortcut='["win","l"]'>Win+L</button>
+      <button type="button" data-shortcut='["alt","tab"]'>Alt+Tab</button>
+    </div>
+    <div class="section-title">Teclas</div>
+    <div class="grid c3 fill f2">
+      <button type="button" data-key="esc">Esc</button>
+      <button type="button" data-key="enter">Enter</button>
+      <button type="button" data-key="space">Espaço</button>
+      <button type="button" data-key="backspace">Backspace</button>
+      <button type="button" data-key="del">Del</button>
+      <button type="button" data-key="tab">Tab</button>
+    </div>
+    <div class="section-title">Setas</div>
+    <div class="dpad fill f2">
+      <span class="empty"></span>
+      <button type="button" data-key="up" aria-label="Cima"><svg class="ico"><use href="#i-up"/></svg></button>
+      <button type="button" data-key="pageup">PgUp</button>
+      <button type="button" data-key="left" aria-label="Esquerda"><svg class="ico"><use href="#i-left"/></svg></button>
+      <button type="button" data-key="down" aria-label="Baixo"><svg class="ico"><use href="#i-down"/></svg></button>
+      <button type="button" data-key="right" aria-label="Direita"><svg class="ico"><use href="#i-right"/></svg></button>
+    </div>
+  </section>
+
+  <!-- TAB: ENERGIA -->
+  <section class="tab" data-tab="power">
+    <div class="section-title">Tela</div>
+    <button class="fill" type="button" data-power-confirm="monitor_off" data-power-label="Desligar o monitor" data-soft="1"><svg class="ico"><use href="#i-monitor"/></svg> Desligar monitor</button>
+    <div class="section-title">Sistema</div>
+    <div class="grid c2 fill">
+      <button type="button" data-power-confirm="sleep" data-power-label="Colocar o PC em suspensão"><svg class="ico"><use href="#i-moon"/></svg> Suspender</button>
+      <button class="danger" type="button" data-power-confirm="restart" data-power-label="Reiniciar o PC"><svg class="ico"><use href="#i-restart"/></svg> Reiniciar</button>
+    </div>
+    <button class="danger fill" type="button" data-power-confirm="shutdown" data-power-label="Desligar o PC" style="font-size:18px"><svg class="ico"><use href="#i-power"/></svg> Desligar PC</button>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button data-goto="trackpad" class="active"><svg class="ico"><use href="#i-cursor"/></svg>Trackpad</button>
+  <button data-goto="media"><svg class="ico"><use href="#i-music"/></svg>Mídia</button>
+  <button data-goto="keyboard"><svg class="ico"><use href="#i-keyboard"/></svg>Teclado</button>
+  <button data-goto="power"><svg class="ico"><use href="#i-power"/></svg>Energia</button>
+</nav>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="ipModal">
+  <div class="modal">
+    <h3><svg class="ico"><use href="#i-settings"/></svg> Ajustes</h3>
+    <div class="field-label">Endereço do PC (host:porta)</div>
+    <input class="text-input" id="ipInput" type="text" placeholder="192.168.0.10:8443" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url">
+    <div class="field-label" style="margin-top:16px">Sensibilidade do cursor: <b id="sensVal">1.5×</b></div>
+    <input class="slider" id="sensInput" type="range" min="0.5" max="3" step="0.1" value="1.5">
+    <div class="row">
+      <button class="ghost" id="ipCancel" type="button">Cancelar</button>
+      <button class="primary" id="ipSave" type="button"><svg class="ico"><use href="#i-check"/></svg> Conectar</button>
+    </div>
+  </div>
+</div>
+
+<!-- POWER CONFIRM MODAL -->
+<div class="modal-bg" id="confirmModal">
+  <div class="modal">
+    <h3 id="confirmTitle"><svg class="ico"><use href="#i-power"/></svg> Confirmar</h3>
+    <p id="confirmText"></p>
+    <div class="row">
+      <button class="ghost" id="confirmCancel" type="button">Cancelar</button>
+      <button class="danger" id="confirmOk" type="button">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg class="ico"><use href="#i-check"/></svg><span id="toastMsg"></span></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const STORAGE_KEY = "pcremote.host", TAB_KEY = "pcremote.tab", SENS_KEY = "pcremote.sens";
+  const TABS = ["trackpad", "media", "keyboard", "power"];
+
+  function getHost() { return localStorage.getItem(STORAGE_KEY) || location.host || "127.0.0.1:8443"; }
+  function setHost(h) { localStorage.setItem(STORAGE_KEY, h); }
+  function normalizeHost(h) {
+    h = (h || "").trim().replace(/^wss?:\/\//i, "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+    if (!h) return "";
+    if (h.indexOf(":") === -1) h += (location.protocol === "https:" ? ":8443" : ":8080");
+    return h;
+  }
+  let sensitivity = parseFloat(localStorage.getItem(SENS_KEY) || "1.5") || 1.5;
+  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 10); } catch (e) {} }
+
+  const toastEl = document.getElementById("toast");
+  const toastMsg = document.getElementById("toastMsg");
+  let toastTimer = null;
+  function toast(msg, ms) {
+    toastMsg.textContent = msg; toastEl.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms || 1600);
+  }
+  function openModal(id) { document.getElementById(id).classList.add("show"); }
+  function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+
+  const tabButtons = document.querySelectorAll(".tabbar button");
+  const tabs = document.querySelectorAll(".tab");
+  function gotoTab(name) {
+    if (!TABS.includes(name)) name = "trackpad";
+    tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+    tabButtons.forEach(b => b.classList.toggle("active", b.dataset.goto === name));
+    try { localStorage.setItem(TAB_KEY, name); } catch (e) {}
+  }
+  tabButtons.forEach(b => b.addEventListener("click", () => { buzz(8); gotoTab(b.dataset.goto); }));
+  const urlTab = new URLSearchParams(location.search).get("t");
+  gotoTab(urlTab || localStorage.getItem(TAB_KEY) || "trackpad");
+
+  // ---- WebSocket ----
+  const dot = document.getElementById("dot");
+  const statusText = document.getElementById("statusText");
+  let ws = null, manualClose = false, reconnectDelay = 500, reconnectTimer = null, pending = [];
+  const PENDING_MAX = 200;
+  function setStatus(state, text) { dot.className = "dot " + state; statusText.textContent = text; }
+  function send(obj) {
+    const data = JSON.stringify(obj);
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(data);
+    else {
+      if (obj.type === "mouse_move" || obj.type === "mouse_scroll") pending = pending.filter(m => m.type !== obj.type);
+      pending.push(obj); if (pending.length > PENDING_MAX) pending.shift();
+    }
+  }
+  function flushPending() { if (!ws || ws.readyState !== WebSocket.OPEN) return; while (pending.length) ws.send(JSON.stringify(pending.shift())); }
+  function connect() {
+    const host = normalizeHost(getHost());
+    if (!host) { setStatus("offline", "configure o IP"); return; }
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    manualClose = false; setStatus("connecting", "conectando…");
+    const url = (location.protocol === "https:" ? "wss://" : "ws://") + host + "/ws";
+    try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
+    ws.onopen = () => { setStatus("online", "conectado"); reconnectDelay = 500; flushPending(); };
+    ws.onclose = () => { if (manualClose) { setStatus("offline", "desconectado"); return; } setStatus("offline", "reconectando…"); scheduleReconnect(); };
+    ws.onerror = () => setStatus("offline", "erro de conexão");
+    ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m && m.ok === false && m.error) toast("Erro: " + m.error); } catch (e) {} };
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => { reconnectTimer = null; reconnectDelay = Math.min(reconnectDelay * 1.7, 8000); connect(); }, reconnectDelay);
+  }
+  setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN) { try { ws.send(JSON.stringify({ type: "ping" })); } catch (e) {} } }, 20000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) connect();
+  });
+
+  // ---- settings ----
+  const ipBtn = document.getElementById("ipBtn"), ipInput = document.getElementById("ipInput");
+  const sensInput = document.getElementById("sensInput"), sensVal = document.getElementById("sensVal");
+  function showSens() { sensVal.textContent = parseFloat(sensInput.value).toFixed(1) + "×"; }
+  sensInput.value = String(sensitivity); showSens();
+  sensInput.addEventListener("input", showSens);
+  ipBtn.addEventListener("click", () => { ipInput.value = getHost(); sensInput.value = String(sensitivity); showSens(); openModal("ipModal"); setTimeout(() => ipInput.focus(), 50); });
+  document.getElementById("ipCancel").addEventListener("click", () => closeModal("ipModal"));
+  function saveSettings() {
+    sensitivity = parseFloat(sensInput.value) || 1.5; localStorage.setItem(SENS_KEY, String(sensitivity));
+    const h = normalizeHost(ipInput.value);
+    if (!h) { toast("Informe um endereço válido"); return; }
+    setHost(h); closeModal("ipModal");
+    if (ws) { manualClose = true; try { ws.close(); } catch (e) {} }
+    connect();
+  }
+  document.getElementById("ipSave").addEventListener("click", saveSettings);
+  ipInput.addEventListener("keydown", e => { if (e.key === "Enter") saveSettings(); });
+
+  // ---- command buttons ----
+  document.querySelectorAll("[data-click]").forEach(b => b.addEventListener("click", () => { buzz(); send({ type: "mouse_click", button: b.dataset.click }); }));
+  document.querySelectorAll("[data-key]").forEach(b => b.addEventListener("click", () => { buzz(); send({ type: "key", key: b.dataset.key }); }));
+  document.querySelectorAll("[data-shortcut]").forEach(b => b.addEventListener("click", () => { buzz(); try { send({ type: "shortcut", keys: JSON.parse(b.dataset.shortcut) }); } catch (e) {} }));
+  document.querySelectorAll("[data-media]").forEach(b => b.addEventListener("click", () => { buzz(); send({ type: "media", action: b.dataset.media }); }));
+  document.querySelectorAll("[data-volume]").forEach(b => b.addEventListener("click", () => { buzz(); send({ type: "volume", action: b.dataset.volume }); }));
+
+  // ---- text input ----
+  const typeInput = document.getElementById("typeInput");
+  function sendType() { const t = typeInput.value; if (!t) return; send({ type: "type", text: t }); typeInput.value = ""; buzz(); toast("Texto enviado"); }
+  document.getElementById("typeSend").addEventListener("click", sendType);
+  typeInput.addEventListener("keydown", e => { if (e.key === "Enter") sendType(); });
+
+  // ---- power confirm ----
+  let pendingPower = null;
+  const confirmText = document.getElementById("confirmText");
+  document.querySelectorAll("[data-power-confirm]").forEach(b => {
+    b.addEventListener("click", () => {
+      buzz(); pendingPower = { action: b.dataset.powerConfirm, label: b.dataset.powerLabel };
+      const soft = b.dataset.soft === "1";
+      confirmText.textContent = pendingPower.label + (soft ? "?" : "? Esta ação não pode ser desfeita.");
+      openModal("confirmModal");
+    });
+  });
+  document.getElementById("confirmCancel").addEventListener("click", () => { pendingPower = null; closeModal("confirmModal"); });
+  document.getElementById("confirmOk").addEventListener("click", () => {
+    if (pendingPower) send({ type: "power", action: pendingPower.action });
+    pendingPower = null; closeModal("confirmModal"); buzz(20); toast("Comando enviado");
+  });
+
+  // ---- trackpad ----
+  const pad = document.getElementById("pad"), dragToggle = document.getElementById("dragToggle");
+  const TAP_MS = 220, TAP_MOVE_TOL = 12;
+  let dragMode = false, dragging = false;
+  dragToggle.addEventListener("click", () => {
+    dragMode = !dragMode; dragToggle.classList.toggle("on", dragMode);
+    buzz(dragMode ? 20 : 8); toast(dragMode ? "Modo arrastar: toque e mova" : "Modo arrastar desligado");
+  });
+  const g = { fingers: {}, maxFingers: 0, startT: 0, travel: 0, movePrev: null, scrollPrev: null, mode: "idle" };
+  function count(o) { return Object.keys(o).length; }
+  function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+  function startDrag() { dragging = true; pad.classList.add("dragging"); send({ type: "mouse_down", button: "left" }); buzz(20); }
+  function endDrag() { if (!dragging) return; dragging = false; pad.classList.remove("dragging"); send({ type: "mouse_up", button: "left" }); }
+  pad.addEventListener("touchstart", function (e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) g.fingers[t.identifier] = { x: t.clientX, y: t.clientY };
+    const n = count(g.fingers);
+    if (g.mode === "idle") { g.startT = Date.now(); g.travel = 0; g.maxFingers = 0; }
+    g.maxFingers = Math.max(g.maxFingers, n);
+    if (n === 1) { g.mode = "move"; g.movePrev = { ...g.fingers[Object.keys(g.fingers)[0]] }; if (dragMode && !dragging) startDrag(); }
+    else if (n === 2) { g.mode = "scroll"; g.movePrev = null; const ids = Object.keys(g.fingers); g.scrollPrev = mid(g.fingers[ids[0]], g.fingers[ids[1]]); }
+    else { g.mode = "idle"; }
+  }, { passive: false });
+  pad.addEventListener("touchmove", function (e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) if (g.fingers[t.identifier]) g.fingers[t.identifier] = { x: t.clientX, y: t.clientY };
+    const n = count(g.fingers);
+    if (n === 1 && g.mode === "move" && g.movePrev) {
+      const cur = g.fingers[Object.keys(g.fingers)[0]];
+      const rdx = cur.x - g.movePrev.x, rdy = cur.y - g.movePrev.y;
+      g.travel += Math.abs(rdx) + Math.abs(rdy);
+      const dx = Math.round(rdx * sensitivity), dy = Math.round(rdy * sensitivity);
+      if (dx || dy) send({ type: "mouse_move", dx: dx, dy: dy });
+      g.movePrev = { x: cur.x, y: cur.y };
+    } else if (n >= 2 && g.mode === "scroll" && g.scrollPrev) {
+      const ids = Object.keys(g.fingers).slice(0, 2);
+      const m = mid(g.fingers[ids[0]], g.fingers[ids[1]]);
+      const dy = Math.round((m.y - g.scrollPrev.y) * sensitivity);
+      g.travel += Math.abs(m.y - g.scrollPrev.y);
+      if (dy) send({ type: "mouse_scroll", delta: -dy });
+      g.scrollPrev = m;
+    }
+  }, { passive: false });
+  pad.addEventListener("touchend", function (e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) delete g.fingers[t.identifier];
+    const n = count(g.fingers);
+    if (n === 0) {
+      if (dragging) endDrag();
+      else {
+        const dur = Date.now() - g.startT;
+        if (g.travel <= TAP_MOVE_TOL && dur <= TAP_MS) {
+          if (g.maxFingers >= 2) { buzz(); send({ type: "mouse_click", button: "right" }); }
+          else if (g.maxFingers === 1) { buzz(); send({ type: "mouse_click", button: "left" }); }
+        }
+      }
+      g.mode = "idle"; g.movePrev = null; g.scrollPrev = null;
+    } else if (n === 1) { g.mode = "move"; g.movePrev = { ...g.fingers[Object.keys(g.fingers)[0]] }; g.scrollPrev = null; }
+  }, { passive: false });
+  pad.addEventListener("touchcancel", function () { g.fingers = {}; if (dragging) endDrag(); g.mode = "idle"; g.movePrev = null; g.scrollPrev = null; }, { passive: false });
+  pad.addEventListener("contextmenu", e => e.preventDefault());
+
+  // ---- install: real PWA CTA via beforeinstallprompt ----
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const installBtn = document.getElementById("installBtn");
+  let deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault(); deferredPrompt = e;
+    if (!isStandalone) installBtn.classList.add("show");
+  });
+  installBtn.addEventListener("click", async () => {
+    buzz(15);
+    if (!deferredPrompt) { toast("Use o menu do Chrome → Instalar app"); return; }
+    deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (e) {}
+    deferredPrompt = null; installBtn.classList.remove("show");
+  });
+  window.addEventListener("appinstalled", () => { installBtn.classList.remove("show"); toast("App instalado!"); });
+
+  // ---- install banner (HTTP setup only) ----
+  const banner = document.getElementById("installBanner"), bannerHttps = document.getElementById("bannerHttps");
+  const isLocalhost = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(location.host);
+  document.getElementById("bannerClose").addEventListener("click", () => { banner.classList.remove("show"); try { sessionStorage.setItem("pcremote.bannerDismissed", "1"); } catch (e) {} });
+  function maybeShowBanner(info) {
+    if (isStandalone || location.protocol === "https:" || isLocalhost) return;
+    if (sessionStorage.getItem("pcremote.bannerDismissed")) return;
+    const port = (info && info.httpsPort) ? info.httpsPort : ":8443";
+    bannerHttps.href = "https://" + location.hostname + port + "/";
+    banner.classList.add("show");
+  }
+  fetch("/info", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(maybeShowBanner).catch(() => maybeShowBanner(null));
+
+  // ---- service worker ----
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(err => console.warn("SW registration failed:", err));
+  }
+
+  // ---- boot ----
+  connect();
+  if (!localStorage.getItem(STORAGE_KEY) && location.protocol === "file:") setTimeout(() => ipBtn.click(), 400);
+})();
+</script>
+</body>
+</html>
