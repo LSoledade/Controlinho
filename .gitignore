@@ -2,8 +2,11 @@
 pc-remote.exe
 pc-remote
 *.exe
+# editor / stale build backups (e.g. pc-remote.exe~)
+*~
 
-# Local CA — NEVER commit the private key (anyone with it can issue trusted
-# certs for your phone). The cert is regenerated on first run.
+# Local CA — now stored in %LocalAppData%\pc-remote, but older versions and the
+# dev fallback may drop it next to the binary. NEVER commit the private key:
+# anyone with it can issue trusted certs for your phone. Regenerated on first run.
 pc-remote-ca.crt
 pc-remote-ca.key

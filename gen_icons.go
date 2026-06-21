@@ -113,7 +113,7 @@ func (c *canvas) fillCircleAA(cx, cy, r float64, col color.RGBA) {
 	}
 }
 
-// lineAA draws an anti-aliased line of given thickness.
+// lineThick draws a line of given thickness by stamping AA disks along it.
 func (c *canvas) lineThick(x0, y0, x1, y1, thick float64, col color.RGBA) {
 	// naive: sample a disk of radius thick/2 along the segment
 	steps := int(math.Hypot(x1-x0, y1-y0)) * 2
@@ -237,8 +237,6 @@ func drawIcon(size int, maskable bool) *canvas {
 	p1 := [2]float64{triCx - triSize*0.5, triCy - triSize}
 	p2 := [2]float64{triCx - triSize*0.5, triCy + triSize}
 	p3 := [2]float64{triCx + triSize, triCy}
-	thick := s * 0.0
-	_ = thick
 	c.lineThick(p1[0], p1[1], p3[0], p3[1], s*0.045, accent)
 	c.lineThick(p3[0], p3[1], p2[0], p2[1], s*0.045, accent)
 	c.lineThick(p2[0], p2[1], p1[0], p1[1], s*0.045, accent)
