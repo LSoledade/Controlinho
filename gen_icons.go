@@ -270,6 +270,51 @@ func main() {
 	}
 	fi, _ := os.Stat("client/icon.ico")
 	println("wrote client/icon.ico", int64ToString(fi.Size()), "bytes")
+
+	// MSIX (Microsoft Store) tile assets. BackgroundColor is "transparent" in
+	// Package.appxmanifest, so each PNG carries its own (edge-to-edge) background —
+	// that's the maskable=true variant. These are the logos the manifest references.
+	if err := os.MkdirAll("packaging/Assets", 0755); err != nil {
+		panic(err)
+	}
+	storeAssets := []struct {
+		size int
+		path string
+	}{
+		{50, "packaging/Assets/StoreLogo.png"},
+		{44, "packaging/Assets/Square44x44Logo.png"},
+		{150, "packaging/Assets/Square150x150Logo.png"},
+	}
+	for _, a := range storeAssets {
+		if err := drawIcon(a.size, true).encodePNG(a.path); err != nil {
+			panic(err)
+		}
+		fi, _ := os.Stat(a.path)
+		println("wrote", a.path, int64ToString(fi.Size()), "bytes")
+	}
+
+	// Optional wide tile (310×150): the square glyph centered on a dark bar.
+	if err := drawWide(310, 150).encodePNG("packaging/Assets/Wide310x150Logo.png"); err != nil {
+		panic(err)
+	}
+	fi, _ = os.Stat("packaging/Assets/Wide310x150Logo.png")
+	println("wrote packaging/Assets/Wide310x150Logo.png", int64ToString(fi.Size()), "bytes")
+}
+
+// drawWide renders the square glyph centered on a w×h dark background, for the
+// optional MSIX wide tile.
+func drawWide(w, h int) *canvas {
+	out := newCanvas(w, h)
+	out.fillRect(0, 0, w, h, color.RGBA{0x0f, 0x11, 0x15, 0xff})
+	glyph := drawIcon(h, true)
+	offX := (w - h) / 2
+	for y := 0; y < h; y++ {
+		for x := 0; x < h; x++ {
+			i := (y*glyph.w + x) * 4
+			out.set(offX+x, y, color.RGBA{glyph.px[i], glyph.px[i+1], glyph.px[i+2], glyph.px[i+3]})
+		}
+	}
+	return out
 }
 
 func int64ToString(n int64) string {

@@ -78,9 +78,9 @@ Quando você roda o `pc-remote.exe` **com console** (run manual), ele:
 A página mostra **dois QRs por rede** (Wi-Fi local e Tailscale), já com o IP certo embutido:
 
 - **QR amarelo (1 · primeira vez)** → abre o setup HTTP para instalar o certificado
-- **QR verde (2 · já instalei)** → abre direto o app seguro (HTTPS)
+- **QR verde (2 · já instalei)** → abre direto o app seguro (HTTPS), **com o PIN de pareamento já embutido**
 
-Aponte a câmera do celular e siga. Se preferir digitar, os endereços estão logo abaixo de cada QR. (Rodando escondido pelo Task Scheduler não há console, então nada abre sozinho — acesse `http://127.0.0.1:8080/qr` no PC quando quiser. Ou simplesmente **rode o `pc-remote.exe` de novo**: detectando que já há uma instância ativa, ele apenas abre essa página de conexão no navegador em vez de tentar subir de novo.)
+Aponte a câmera do celular e siga. Se preferir digitar o IP na mão, os endereços estão logo abaixo de cada QR — nesse caso informe também o **PIN** mostrado no topo da página (em **⚙ Ajustes → PIN**). (Rodando escondido pelo Task Scheduler não há console, então nada abre sozinho — acesse `http://127.0.0.1:8080/qr` no PC quando quiser. Ou simplesmente **rode o `pc-remote.exe` de novo**: detectando que já há uma instância ativa, ele apenas abre essa página de conexão no navegador em vez de tentar subir de novo.)
 
 ---
 
@@ -109,7 +109,7 @@ Aponte a câmera do celular e siga. Se preferir digitar, os endereços estão lo
 
 ## Uso
 
-- **Configurar o IP:** toque em **⚙ Ajustes** e informe `host:porta` (ex.: `192.168.0.70:8443`). Fica salvo no `localStorage`. No mesmo painel dá pra ajustar **sensibilidade do cursor**, **velocidade de rolagem**, **rolagem natural** (inverte a direção do scroll), **"Pressionar Enter ao enviar texto"** e ligar/desligar a **vibração** (haptics ao tocar).
+- **Configurar o IP:** toque em **⚙ Ajustes** e informe `host:porta` (ex.: `192.168.0.70:8443`) e o **PIN** (mostrado na página `/qr`; ao escanear o QR ele já vem preenchido). Fica salvo no `localStorage`. No mesmo painel dá pra ajustar **sensibilidade do cursor**, **velocidade de rolagem**, **rolagem natural** (inverte a direção do scroll), **"Pressionar Enter ao enviar texto"** e ligar/desligar a **vibração** (haptics ao tocar).
 - **Trackpad:** 1 dedo move · toque = clique esquerdo · toque com 2 dedos = clique direito · 2 dedos arrastando = rolar. O movimento tem **aceleração**: gestos lentos são precisos e flicks rápidos percorrem mais tela. O botão **✊ Arrastar** segura o botão esquerdo: ligue, toque e mova para arrastar janelas/seleções; solte o dedo para soltar.
 
 ### Argumentos
@@ -158,7 +158,8 @@ Há **proteção contra instância dupla:** se você rodar o `pc-remote.exe` enq
 - **Só aceita conexões da rede local / Tailscale:** loopback, `10/8`, `172.16/12`, `192.168/16`, Tailscale `100.64/10`, IPv6 ULA. Qualquer outra origem recebe `403`.
 - **Validação de origem (anti DNS-rebinding / CSRF):** o WebSocket só aceita upgrades cujo `Origin` bate com o host requisitado. Assim, um site malicioso aberto no celular (mesmo estando na sua LAN) **não** consegue abrir socket e controlar o PC — o `Origin` dele seria outro domínio.
 - **HTTPS confiável** via CA local (acima). A chave privada não sai do PC e fica num diretório por usuário e local da máquina (`%LocalAppData%\pc-remote`, fora do controle de versão).
-- **Sem senha:** o modelo é confiar na topologia de rede. **Não exponha as portas para a internet.** Para acesso externo, use Tailscale (o range `100.64/10` já é aceito).
+- **PIN de pareamento:** além da topologia de rede, todo WebSocket exige um **token** secreto (gerado uma vez e guardado em `%LocalAppData%\pc-remote`, junto da CA). Escaneando o QR verde o PIN já vai junto (zero atrito); para digitar o IP na mão, informe o **PIN** mostrado na página `/qr`. Estar na rede passa a ser necessário, mas não suficiente.
+- **Topologia de rede ainda vale:** **não exponha as portas para a internet.** Para acesso externo, use Tailscale (o range `100.64/10` já é aceito).
 
 > ⚠️ Ações de **energia** (desligar/reiniciar) não têm desfazer — confirme com cuidado.
 
@@ -200,19 +201,24 @@ Dependências (todas Go puro, **sem CGO** na build Windows): `github.com/gorilla
 
 ```
 pc-remote/
-├── main.go            # Servidor HTTP+HTTPS, WebSocket, dispatch, allowlist, CheckOrigin, flags -install/-uninstall
-├── tlsx.go            # CA local em %LocalAppData% (+ migração) + emissão dinâmica do certificado (mkcert-style), Go puro
-├── qr.go              # Página /qr + QR no terminal + auto-open do navegador
-├── input_windows.go   # Input via user32.dll (mouse/teclado/texto/monitor)
-├── input_stub.go      # Stub no-op para build em Linux/macOS (dev)
-├── install_windows.go # Auto-início: Task Scheduler + firewall (com auto-elevação UAC)
-├── install_other.go   # Stubs de install para Linux/macOS (dev)
-├── tray_windows.go    # Ícone na bandeja (fyne.io/systray)
-├── tray_other.go      # Sem bandeja fora do Windows; bloqueia no contexto (dev)
-├── gen_icons.go       # Gerador de ícones do PWA + icon.ico da bandeja (go run gen_icons.go)
+├── main.go              # Servidor HTTP+HTTPS, WebSocket, dispatch, allowlist, CheckOrigin
+├── token.go             # PIN/token de pareamento (gera/persiste/valida) — exigido no WebSocket
+├── tlsx.go              # CA local em %LocalAppData% (+ migração) + emissão dinâmica do certificado (mkcert-style), Go puro
+├── qr.go                # Página /qr + QR no terminal + auto-open do navegador
+├── input_windows.go     # Input via user32.dll (mouse/teclado/texto/monitor)
+├── input_stub.go        # Stub no-op para build em Linux/macOS (dev)
+├── install_windows.go   # [build .exe] Auto-início: Task Scheduler + firewall (auto-elevação UAC)
+├── install_store.go     # [build store] Auto-início via WinRT StartupTask (MSIX)
+├── install_other.go     # Stubs de install para Linux/macOS (dev)
+├── installcli_desktop.go# [build .exe] Flags -install/-uninstall/-setupfw
+├── installcli_store.go  # [build store] Sem flags de install (a Store instala)
+├── tray_windows.go      # Ícone na bandeja (fyne.io/systray)
+├── tray_other.go        # Sem bandeja fora do Windows; bloqueia no contexto (dev)
+├── gen_icons.go         # Gerador de ícones do PWA/bandeja + assets MSIX (go run gen_icons.go)
 ├── go.mod / go.sum
-├── client/            # PWA single-file + manifest + service worker + ícones (PNG + icon.ico)
-├── install.bat        # Atalho de duplo-clique para `pc-remote.exe -install`
+├── client/              # PWA single-file + manifest + service worker + ícones (PNG + icon.ico)
+├── packaging/           # MSIX (Microsoft Store): manifesto, assets, build-msix.ps1, README
+├── install.bat          # Atalho de duplo-clique para `pc-remote.exe -install` (build .exe)
 └── README.md
 ```
 
@@ -222,7 +228,7 @@ pc-remote/
 
 - **Android não oferece "Instalar app":** confirme que (a) instalou a CA como **certificado CA** (não de usuário), (b) está na URL **HTTPS** (`:8443`), e (c) o cadeado aparece sem aviso. Sem isso o Chrome não registra o service worker.
 - **"Sua conexão não é particular" no HTTPS:** a CA ainda não foi instalada/confiada no celular. Volte ao passo de instalação do certificado.
-- **Não conecta:** PC e celular na mesma Wi-Fi; firewall liberando `8080`/`8443`; IP correto em **⚙ Ajustes**.
+- **Não conecta:** PC e celular na mesma Wi-Fi; firewall liberando `8080`/`8443`; IP correto em **⚙ Ajustes**. Se aparecer **"informe o PIN nos ajustes"**, o token de pareamento está faltando — escaneie o QR verde de novo ou digite o **PIN** (mostrado em `/qr`) em **⚙ Ajustes**.
 - **Mouse/teclado não responde:** rode como usuário logado (input só funciona em sessão interativa).
 - **Trocou de rede e o HTTPS quebrou:** normalmente **não** precisa mais reiniciar — o servidor reemite o certificado HTTPS sob demanda quando o IP do PC muda (novo Wi-Fi / DHCP) ou quando o certificado se aproxima do vencimento. A CA continua válida (não precisa reinstalar no celular). Se mesmo assim não pegar, reinicie o `pc-remote.exe`.
 

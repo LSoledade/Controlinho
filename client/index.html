@@ -387,6 +387,8 @@
     <h3><svg class="ico"><use href="#i-settings"/></svg> Ajustes</h3>
     <div class="field-label">Endereço do PC (host:porta)</div>
     <input class="text-input" id="ipInput" type="text" placeholder="192.168.0.10:8443" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url">
+    <div class="field-label" style="margin-top:16px">PIN (do QR ou da página de conexão)</div>
+    <input class="text-input" id="pinInput" type="text" placeholder="ex.: ABCD23WXYZ" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text">
     <div class="field-label" style="margin-top:16px">Sensibilidade do cursor: <b id="sensVal">1.5×</b></div>
     <input class="slider" id="sensInput" type="range" min="0.5" max="3" step="0.1" value="1.5">
     <div class="field-label" style="margin-top:12px">Velocidade de rolagem: <b id="scrollVal">1.0×</b></div>
@@ -424,10 +426,28 @@
   const STORAGE_KEY = "pcremote.host", TAB_KEY = "pcremote.tab", SENS_KEY = "pcremote.sens";
   const SCROLL_KEY = "pcremote.scroll", NATURAL_KEY = "pcremote.natural", ENTER_KEY = "pcremote.enter";
   const HAPTICS_KEY = "pcremote.haptics", HINT_KEY = "pcremote.hintSeen", IOS_KEY = "pcremote.iosHint";
+  const TOKEN_KEY = "pcremote.token";
   const TABS = ["trackpad", "media", "keyboard", "power"];
 
   function getHost() { return localStorage.getItem(STORAGE_KEY) || location.host || "127.0.0.1:8443"; }
   function setHost(h) { localStorage.setItem(STORAGE_KEY, h); }
+  function getToken() { return localStorage.getItem(TOKEN_KEY) || ""; }
+  function setToken(t) { try { localStorage.setItem(TOKEN_KEY, t); } catch (e) {} }
+  // Pairing token: scanning the green QR (or tapping the setup page's "secure app"
+  // link) lands here with ?k=…. Persist it — the installed PWA's start_url has no
+  // token — and strip it from the visible URL.
+  (function () {
+    try {
+      const p = new URLSearchParams(location.search);
+      const k = p.get("k");
+      if (k) {
+        setToken(k);
+        p.delete("k");
+        const q = p.toString();
+        history.replaceState(null, "", location.pathname + (q ? "?" + q : "") + location.hash);
+      }
+    } catch (e) {}
+  })();
   function normalizeHost(h) {
     h = (h || "").trim().replace(/^wss?:\/\//i, "").replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
     if (!h) return "";
@@ -486,12 +506,19 @@
   function connect() {
     const host = normalizeHost(getHost());
     if (!host) { setStatus("offline", "configure o IP"); return; }
+    const tok = getToken();
+    // Every WS now requires the pairing token, so without one the upgrade would just
+    // 403. Stop and tell the user to pair (scan the QR or enter the PIN) instead of
+    // looping reconnects. Saving a PIN in Ajustes calls connect() again, which will
+    // then have a token. (On the HTTP setup origin localStorage is empty by design —
+    // its job is CA install + jumping to the secure app, not controlling.)
+    if (!tok) { setStatus("offline", "informe o PIN nos ajustes"); return; }
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     // tear down any previous socket so its onclose can't schedule a duplicate reconnect
     if (ws) { ws.onopen = ws.onclose = ws.onerror = ws.onmessage = null; try { ws.close(); } catch (e) {} ws = null; }
     const gen = ++wsGen; // this connection's identity
     manualClose = false; setStatus("connecting", "conectando…");
-    const url = (location.protocol === "https:" ? "wss://" : "ws://") + host + "/ws";
+    const url = (location.protocol === "https:" ? "wss://" : "ws://") + host + "/ws" + (tok ? "?k=" + encodeURIComponent(tok) : "");
     let sock;
     try { sock = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
     ws = sock;
@@ -522,6 +549,7 @@
 
   // ---- settings ----
   const ipBtn = document.getElementById("ipBtn"), ipInput = document.getElementById("ipInput");
+  const pinInput = document.getElementById("pinInput");
   const sensInput = document.getElementById("sensInput"), sensVal = document.getElementById("sensVal");
   const scrollInput = document.getElementById("scrollInput"), scrollVal = document.getElementById("scrollVal");
   const naturalToggle = document.getElementById("naturalToggle"), enterToggle = document.getElementById("enterToggle");
@@ -541,7 +569,7 @@
   enterToggle.addEventListener("click", () => { enterAfterText = !enterAfterText; enterToggle.classList.toggle("on", enterAfterText); buzz(8); });
   hapticsToggle.addEventListener("click", () => { haptics = !haptics; hapticsToggle.classList.toggle("on", haptics); buzz(8); });
   ipBtn.addEventListener("click", () => {
-    ipInput.value = getHost(); sensInput.value = String(sensitivity); showSens();
+    ipInput.value = getHost(); pinInput.value = getToken(); sensInput.value = String(sensitivity); showSens();
     scrollInput.value = String(scrollSpeed); showScroll();
     naturalToggle.classList.toggle("on", naturalScroll);
     enterToggle.classList.toggle("on", enterAfterText);
@@ -557,7 +585,9 @@
     localStorage.setItem(HAPTICS_KEY, haptics ? "1" : "0");
     const h = normalizeHost(ipInput.value);
     if (!h) { toast("Informe um endereço válido"); return; }
-    setHost(h); closeModal("ipModal"); updateHostLabel();
+    setHost(h);
+    setToken((pinInput.value || "").trim()); // server normalizes case/dashes
+    closeModal("ipModal"); updateHostLabel();
     // connect() tears down the previous socket (generation guard prevents zombie reconnects)
     connect();
   }
@@ -733,7 +763,10 @@
     if (isStandalone || location.protocol === "https:" || isLocalhost) return;
     if (sessionStorage.getItem("pcremote.bannerDismissed")) return;
     const port = (info && info.httpsPort) ? info.httpsPort : ":8443";
-    bannerHttps.href = "https://" + location.hostname + port + "/";
+    // Carry the token across the http→https origin hop (localStorage doesn't cross
+    // origins): prefer the token from /info, fall back to one we already stored.
+    const tok = (info && info.token) ? info.token : getToken();
+    bannerHttps.href = "https://" + location.hostname + port + "/" + (tok ? "?k=" + encodeURIComponent(tok) : "");
     banner.classList.add("show");
   }
   fetch("/info", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(maybeShowBanner).catch(() => maybeShowBanner(null));

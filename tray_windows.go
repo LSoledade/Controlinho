@@ -32,7 +32,7 @@ func trayOnReady(httpAddr string) {
 
 	mOpen := systray.AddMenuItem("Abrir página de conexão", "Mostra os QR codes para parear o celular")
 	systray.AddSeparator()
-	mAuto := systray.AddMenuItemCheckbox("Iniciar com o Windows", "Registra/remove a tarefa de logon", taskInstalled())
+	mAuto := systray.AddMenuItemCheckbox("Iniciar com o Windows", "Liga/desliga o início automático no logon", autoStartEnabled())
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Sair", "Encerra o servidor")
 
@@ -44,19 +44,16 @@ func trayOnReady(httpAddr string) {
 			case <-mOpen.ClickedCh:
 				openBrowser(qrURL)
 			case <-mAuto.ClickedCh:
-				if mAuto.Checked() {
-					if err := uninstallSelf(); err != nil {
-						log.Printf("tray: uninstall: %v", err)
-					} else {
-						mAuto.Uncheck()
-					}
+				// Toggle, then reflect the *actual* resulting state: the OS can
+				// refuse to enable auto-start (e.g. user/policy disabled it), and
+				// the desktop/Store backends differ in what can fail.
+				if err := setAutoStart(!mAuto.Checked()); err != nil {
+					log.Printf("tray: auto-start: %v", err)
+				}
+				if autoStartEnabled() {
+					mAuto.Check()
 				} else {
-					// An instance is already running (this one), so don't start another.
-					if err := installSelf(false); err != nil {
-						log.Printf("tray: install: %v", err)
-					} else {
-						mAuto.Check()
-					}
+					mAuto.Uncheck()
 				}
 			case <-mQuit.ClickedCh:
 				systray.Quit()

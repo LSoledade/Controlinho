@@ -28,7 +28,7 @@ import (
 //go:embed all:client
 var clientFS embed.FS
 
-const version = "2.1.0"
+const version = "2.2.0"
 
 // --- Command payload ---
 
@@ -178,13 +178,16 @@ func serveTyped(name, ctype string, noCache bool) http.HandlerFunc {
 	}
 }
 
-// serveIndex writes the single-page index.html directly from the embed.
-func serveIndex(w http.ResponseWriter, _ *http.Request) {
+// serveIndex writes the single-page index.html directly from the embed. When the
+// app page is opened with a valid ?k= over TLS, it also drops the pairing cookie so
+// later same-origin WS upgrades authenticate without the client re-sending the token.
+func serveIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := clientFS.ReadFile("client/index.html")
 	if err != nil {
 		http.Error(w, "client not available", http.StatusInternalServerError)
 		return
 	}
+	setPairingCookie(w, r)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(data)
@@ -206,6 +209,11 @@ func handleInfo(w http.ResponseWriter, r *http.Request) {
 		"version":   version,
 		"httpsPort": httpsPortValue,
 		"secure":    r.TLS != nil,
+		// The pairing token, so the HTTP setup page can build the secure-app link
+		// (different origin → localStorage doesn't carry over) with ?k= baked in.
+		// Safe to expose here: /info is gated by allowedHost (LAN/Tailscale only) and
+		// the browser's same-origin policy blocks a cross-origin page from reading it.
+		"token": sessionToken,
 	})
 }
 
@@ -225,11 +233,53 @@ func handleCA(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(caCertPEM)
 }
 
+// pairingCookie carries the token for same-origin navigations (e.g. launching the
+// installed PWA, whose start_url has no ?k=). The client also sends ?k= explicitly;
+// this is a belt-and-suspenders backup.
+const pairingCookie = "pcr_k"
+
+// wsToken extracts the pairing token from the ?k= query or the pairing cookie.
+func wsToken(r *http.Request) string {
+	if k := r.URL.Query().Get("k"); k != "" {
+		return k
+	}
+	if c, err := r.Cookie(pairingCookie); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// setPairingCookie persists the token for the origin when the app page is opened
+// with a valid ?k= over TLS, so later same-origin WS upgrades carry it automatically.
+func setPairingCookie(w http.ResponseWriter, r *http.Request) {
+	k := r.URL.Query().Get("k")
+	if r.TLS == nil || !validToken(k) {
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     pairingCookie,
+		Value:    normalizeToken(k),
+		Path:     "/",
+		MaxAge:   400 * 24 * 60 * 60, // ~400d (browser cap); pairing is effectively permanent
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
 // handleWS upgrades to a WebSocket and processes commands.
 func handleWS(w http.ResponseWriter, r *http.Request) {
 	if !allowedHost(r.RemoteAddr) {
 		log.Printf("ws: rejected connection from %s (not on local/Tailscale network)", r.RemoteAddr)
 		http.Error(w, "forbidden: host not allowed", http.StatusForbidden)
+		return
+	}
+	// Pairing token (defense in depth on top of the IP allowlist and Origin check):
+	// the phone presents it via the ?k= query (sent by the client) or the pairing
+	// cookie. Missing/invalid → 403 before the upgrade.
+	if !validToken(wsToken(r)) {
+		log.Printf("ws: rejected connection from %s (missing/invalid pairing token)", r.RemoteAddr)
+		http.Error(w, "forbidden: invalid pairing token", http.StatusForbidden)
 		return
 	}
 	c, err := upgrader.Upgrade(w, r, nil)
@@ -506,9 +556,9 @@ func main() {
 	httpsAddr := flag.String("https", "0.0.0.0:8443", "HTTPS listen address (PWA install + wss)")
 	openUI := flag.Bool("open", true, "open the QR/connect page in the browser on startup (when run with a console)")
 	showVer := flag.Bool("version", false, "print version and exit")
-	doInstall := flag.Bool("install", false, "register auto-start at logon + open the firewall, then start")
-	doUninstall := flag.Bool("uninstall", false, "remove the auto-start task and firewall rule")
-	setupFW := flag.Bool("setupfw", false, "(internal) add the firewall rule then exit — used for UAC elevation")
+	// Desktop build registers -install/-uninstall/-setupfw here; the MSIX (store)
+	// build registers nothing (the Store handles install/auto-start).
+	registerInstallFlags()
 	flag.Parse()
 
 	if *showVer {
@@ -516,25 +566,8 @@ func main() {
 		return
 	}
 
-	// Internal: the elevated child spawned by -install adds the firewall rule and exits.
-	if *setupFW {
-		if err := addFirewallRule(); err != nil {
-			log.Fatalf("firewall: %v", err)
-		}
-		return
-	}
-
-	if *doInstall {
-		if err := installSelf(true); err != nil {
-			log.Fatalf("install: %v", err)
-		}
-		log.Printf("pronto. No celular: abra http://SEU-IP:8080 e siga o passo a passo (ou veja a bandeja do sistema).")
-		return
-	}
-	if *doUninstall {
-		if err := uninstallSelf(); err != nil {
-			log.Fatalf("uninstall: %v", err)
-		}
+	// Desktop build: -install/-uninstall/-setupfw run and exit. Store build: no-op.
+	if runInstallFlags() {
 		return
 	}
 
@@ -561,6 +594,12 @@ func main() {
 		log.Fatalf("tls: %v", err)
 	}
 	caCertPEM = mgr.caPEM()
+
+	// Pairing token: persisted next to the CA, embedded in the app QR, required on
+	// every WebSocket upgrade. See token.go.
+	if sessionToken, err = loadOrCreateToken(dataDir()); err != nil {
+		log.Fatalf("token: %v", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", handleWS)

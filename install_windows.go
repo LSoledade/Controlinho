@@ -1,8 +1,9 @@
-//go:build windows
+//go:build windows && !store
 
 package main
 
-// Self-install: fold what install.bat used to do into the binary so a single
+// Self-install (desktop .exe build only — excluded from the MSIX `store` build).
+// Fold what install.bat used to do into the binary so a single
 // .exe can register itself to auto-start at logon and open the firewall.
 //
 //   pc-remote.exe -install     register the logon task + firewall rule, start now
@@ -142,4 +143,23 @@ func uninstallSelf() error {
 		log.Printf("[uninstall] regra de firewall removida.")
 	}
 	return nil
+}
+
+// --- auto-start abstraction (consumed by tray_windows.go) ---
+//
+// The tray's "Iniciar com o Windows" toggle calls these. The desktop build backs
+// them with the logon Task Scheduler entry above; the MSIX build (install_store.go)
+// swaps in a WinRT StartupTask implementation. Same signatures on both sides so the
+// tray code is identical across builds.
+
+// autoStartEnabled reports whether auto-start at logon is currently active.
+func autoStartEnabled() bool { return taskInstalled() }
+
+// setAutoStart enables or disables auto-start at logon. On enable we pass
+// startNow=false: an instance (this one) is already running, so we only register.
+func setAutoStart(enable bool) error {
+	if enable {
+		return installSelf(false)
+	}
+	return uninstallSelf()
 }

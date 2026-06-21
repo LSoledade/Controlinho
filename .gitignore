@@ -10,3 +10,12 @@ pc-remote
 # anyone with it can issue trusted certs for your phone. Regenerated on first run.
 pc-remote-ca.crt
 pc-remote-ca.key
+
+# Pairing token (secret). Stored in %LocalAppData%\pc-remote; never commit it.
+pc-remote-token
+
+# MSIX packaging build artifacts (staged/packed/signing). The manifest and the
+# generated Assets\ ARE committed; these outputs are not.
+/pkg/
+*.msix
+*.pfx

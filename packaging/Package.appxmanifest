@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PC Remote — MSIX (Microsoft Store) manifest. Full-trust desktop app.
+
+  Build it with:  go build -tags store -ldflags "-s -w -H windowsgui" -o pkg\pc-remote.exe .
+  (see packaging/build-msix.ps1)
+
+  BEFORE SUBMITTING, fill in from Partner Center (after reserving the app name):
+    - Identity/Name        → your reserved package Identity Name
+    - Identity/Publisher   → "CN=<your publisher GUID>"
+    - PublisherDisplayName → your registered publisher display name
+  Local sideload testing: Identity/Publisher must equal the Subject of the cert you
+  sign with (e.g. CN=PCRemoteTest), and the package must be signed (the Store signs
+  it for you on ingestion, so signing is only for local testing — see build-msix.ps1).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap5 rescap">
+
+  <Identity Name="SeuPublisher.PCRemote"
+            Publisher="CN=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+            Version="2.2.0.0"
+            ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>PC Remote</DisplayName>
+    <PublisherDisplayName>Seu Nome</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="pt-BR" />
+  </Resources>
+
+  <Applications>
+    <Application Id="PCRemote"
+                 Executable="pc-remote.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="PC Remote"
+        Description="Controle o PC pelo celular na rede local"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <!-- Auto-start at logon — replaces the desktop build's schtasks /sc onlogon.
+             Enabled="false": the app starts it disabled; the tray toggle (Opção A,
+             install_store.go) flips it via the WinRT StartupTask API. TaskId MUST
+             match startupTaskID in install_store.go. -->
+        <uap5:Extension Category="windows.startupTask"
+                        Executable="pc-remote.exe"
+                        EntryPoint="Windows.FullTrustApplication">
+          <uap5:StartupTask TaskId="PCRemoteStartup"
+                            Enabled="false"
+                            DisplayName="PC Remote" />
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- runFullTrust is a restricted capability — the submission asks for a
+         justification. Use: "controle remoto do desktop a partir do celular na rede
+         local; requer injeção de input via Win32, incompatível com sandbox." -->
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="privateNetworkClientServer" />
+    <Capability Name="internetClientServer" />
+  </Capabilities>
+</Package>

@@ -76,9 +76,18 @@ func isTailscale(ip string) bool {
 
 var httpPortValue string // ":8080" — set in main
 
-// setupURL / appURL build the onboarding URLs for a given host.
+// setupURL / appURL build the onboarding URLs for a given host. The app URL carries
+// the pairing token as ?k= so scanning the green QR pairs with zero friction; the
+// client stores it and presents it on the WebSocket. (The token alphabet is
+// URL-safe base32, so no escaping is needed.)
 func setupURL(host string) string { return "http://" + host + httpPortValue }
-func appURL(host string) string   { return "https://" + host + httpsPortValue }
+func appURL(host string) string {
+	u := "https://" + host + httpsPortValue + "/"
+	if sessionToken != "" {
+		u += "?k=" + sessionToken
+	}
+	return u
+}
 
 // handleQRPNG renders a QR PNG for ?t=setup|app&h=<host>.
 func handleQRPNG(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +132,8 @@ func handleQRPage(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		Entries []qrEntry
 		Version string
-	}{Version: version}
+		Token   string
+	}{Version: version, Token: sessionToken}
 
 	if lan != "" {
 		data.Entries = append(data.Entries, qrEntry{
@@ -166,7 +176,9 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
   .ico { width:1.3em; height:1.3em; vertical-align:-.28em; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   h1 { font-size:24px; margin:0 0 4px; text-align:center; display:flex; align-items:center; justify-content:center; gap:10px; }
   h1 .ico { color:#5b9dff; width:26px; height:26px; }
-  .ver { text-align:center; color:#9aa3b4; font-size:13px; margin-bottom:30px; }
+  .ver { text-align:center; color:#9aa3b4; font-size:13px; margin-bottom:8px; }
+  .pin { text-align:center; color:#9aa3b4; font-size:13px; margin:0 auto 28px; }
+  .pin b { color:#5b9dff; font-variant-numeric:tabular-nums; letter-spacing:.14em; font-size:16px; }
   .wrap { max-width:960px; margin:0 auto; display:grid; gap:20px;
     grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
   .card { background:#12151d; border:1px solid #262c39; border-radius:20px; padding:22px;
@@ -211,6 +223,7 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
 </defs></svg>
 <h1><svg class="ico"><use href="#i-monitor"/></svg> Conectar o celular</h1>
 <div class="ver">PC Remote {{.Version}} — aponte a câmera para um QR code</div>
+{{if .Token}}<div class="pin">PIN (para digitar o IP na mão): <b>{{.Token}}</b></div>{{end}}
 {{if .Entries}}
 <div class="wrap">
 {{range .Entries}}
@@ -241,7 +254,8 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
 <div class="note">
   Na <b>primeira vez</b>, escaneie o QR de cima: o celular abre a página de setup
   para baixar e instalar o certificado (uma vez). Depois disso, use o QR de baixo
-  para abrir o app direto. Mantenha o PC e o celular na mesma rede (ou Tailscale).
+  para abrir o app direto. Escaneando o QR, o <b>PIN</b> já vai junto; só precisa
+  dele se digitar o IP na mão. Mantenha o PC e o celular na mesma rede (ou Tailscale).
 </div>
 {{else}}
 <div class="empty">
