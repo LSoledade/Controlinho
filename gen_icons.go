@@ -128,13 +128,65 @@ func (c *canvas) lineThick(x0, y0, x1, y1, thick float64, col color.RGBA) {
 	}
 }
 
-// encodePNG writes the canvas as an 8-bit RGBA PNG.
-func (c *canvas) encodePNG(path string) error {
+// pngBytes returns the canvas as 8-bit RGBA PNG bytes.
+func (c *canvas) pngBytes() ([]byte, error) {
 	img := image.NewRGBA(image.Rect(0, 0, c.w, c.h))
 	copy(img.Pix, c.px)
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// encodePNG writes the canvas as an 8-bit RGBA PNG.
+func (c *canvas) encodePNG(path string) error {
+	b, err := c.pngBytes()
+	if err != nil {
 		return err
+	}
+	return os.WriteFile(path, b, 0644)
+}
+
+// writeICO assembles a Windows .ico holding PNG-compressed images at the given
+// sizes (Windows Vista+ reads PNG inside ICO). Used for the system-tray icon,
+// which is embedded into the binary and handed to systray.SetIcon.
+func writeICO(path string, sizes []int) error {
+	type entry struct {
+		size int
+		png  []byte
+	}
+	var entries []entry
+	for _, s := range sizes {
+		b, err := drawIcon(s, false).pngBytes()
+		if err != nil {
+			return err
+		}
+		entries = append(entries, entry{s, b})
+	}
+
+	var buf bytes.Buffer
+	binary.Write(&buf, binary.LittleEndian, uint16(0)) // reserved
+	binary.Write(&buf, binary.LittleEndian, uint16(1)) // type: icon
+	binary.Write(&buf, binary.LittleEndian, uint16(len(entries)))
+	offset := 6 + 16*len(entries) // dir header + one entry each
+	for _, e := range entries {
+		dim := byte(e.size)
+		if e.size >= 256 {
+			dim = 0 // 0 means 256 in the ICONDIRENTRY
+		}
+		buf.WriteByte(dim)                                  // width
+		buf.WriteByte(dim)                                  // height
+		buf.WriteByte(0)                                    // palette size (0 = no palette)
+		buf.WriteByte(0)                                    // reserved
+		binary.Write(&buf, binary.LittleEndian, uint16(1))  // color planes
+		binary.Write(&buf, binary.LittleEndian, uint16(32)) // bits per pixel
+		binary.Write(&buf, binary.LittleEndian, uint32(len(e.png)))
+		binary.Write(&buf, binary.LittleEndian, uint32(offset))
+		offset += len(e.png)
+	}
+	for _, e := range entries {
+		buf.Write(e.png)
 	}
 	return os.WriteFile(path, buf.Bytes(), 0644)
 }
@@ -213,7 +265,13 @@ func main() {
 		fi, _ := os.Stat(g.path)
 		println("wrote", g.path, int64ToString(fi.Size()), "bytes")
 	}
-	_ = binary.LittleEndian // keep import used on minimal builds
+
+	// Multi-size .ico for the Windows system-tray icon (embedded via client/).
+	if err := writeICO("client/icon.ico", []int{16, 24, 32, 48, 64, 128, 256}); err != nil {
+		panic(err)
+	}
+	fi, _ := os.Stat("client/icon.ico")
+	println("wrote client/icon.ico", int64ToString(fi.Size()), "bytes")
 }
 
 func int64ToString(n int64) string {

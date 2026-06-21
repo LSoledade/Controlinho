@@ -140,6 +140,9 @@ func handleQRPage(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// No network yet (e.g. booted before Wi-Fi came up): the template renders a
+	// friendly empty state and self-refreshes until an address appears.
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	if err := qrPageTmpl.Execute(w, data); err != nil {
@@ -151,6 +154,7 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
 <html lang="pt-BR"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{{if not .Entries}}<meta http-equiv="refresh" content="5">{{end}}
 <title>PC Remote — Conectar o celular</title>
 <style>
   :root { color-scheme: dark; }
@@ -174,7 +178,15 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
   .step img { width:134px; height:134px; background:#fff; border-radius:12px; padding:7px; flex:0 0 auto; }
   .step .t { font-size:14px; line-height:1.45; }
   .step .t b { color:#5b9dff; }
-  .step .url { font-size:12px; color:#5f6776; word-break:break-all; margin-top:6px; font-variant-numeric:tabular-nums; }
+  .step .url { font-size:12px; color:#5f6776; word-break:break-all; margin-top:6px; font-variant-numeric:tabular-nums;
+    display:flex; align-items:center; gap:7px; }
+  .step .url span { word-break:break-all; }
+  .copy { flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; cursor:pointer;
+    background:#1b2030; color:#9aa3b4; border:1px solid #2b3242; border-radius:7px;
+    padding:3px 8px; font-size:11px; font-weight:600; font-family:inherit; line-height:1.4; }
+  .copy:hover { background:#222838; color:#eef1f6; }
+  .copy.ok { color:#44d07b; border-color:rgba(68,208,123,.4); }
+  .copy .ico { width:13px; height:13px; }
   .badge { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; letter-spacing:.04em;
     padding:3px 9px; border-radius:999px; margin-bottom:7px; }
   .badge .ico { width:13px; height:13px; }
@@ -182,6 +194,11 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
   .b2 { background:rgba(68,208,123,.14); color:#44d07b; }
   .note { max-width:960px; margin:30px auto 0; color:#9aa3b4; font-size:13px; line-height:1.6; text-align:center; }
   .note b { color:#eef1f6; }
+  .empty { max-width:560px; margin:0 auto; text-align:center; background:#12151d; border:1px solid #262c39;
+    border-radius:20px; padding:34px 26px; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+  .empty .ico { color:#ffc24b; width:38px; height:38px; margin-bottom:12px; }
+  .empty p { margin:0; color:#9aa3b4; font-size:14px; line-height:1.6; }
+  .empty p b { color:#eef1f6; }
 </style></head><body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
   <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2.5" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M8 21h8M12 17v4"/></symbol>
@@ -189,9 +206,12 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2.5" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-wifioff" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M2 2l20 20M8.5 16a5 5 0 0 1 6.5-.5M5 12.5a10 10 0 0 1 4-2.3M16 10a10 10 0 0 1 3 2.5"/><circle cx="12" cy="19.5" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
 </defs></svg>
 <h1><svg class="ico"><use href="#i-monitor"/></svg> Conectar o celular</h1>
 <div class="ver">PC Remote {{.Version}} — aponte a câmera para um QR code</div>
+{{if .Entries}}
 <div class="wrap">
 {{range .Entries}}
   <div class="card">
@@ -202,7 +222,7 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
       <div class="t">
         <span class="badge b1"><svg class="ico"><use href="#i-download"/></svg>1 · PRIMEIRA VEZ</span><br>
         Instalar o <b>certificado</b> e o app.
-        <div class="url">{{.Setup}}</div>
+        <div class="url"><span>{{.Setup}}</span><button class="copy" type="button" data-url="{{.Setup}}"><svg class="ico"><use href="#i-copy"/></svg>Copiar</button></div>
       </div>
     </div>
     {{if .HasApp}}
@@ -211,7 +231,7 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
       <div class="t">
         <span class="badge b2"><svg class="ico"><use href="#i-check"/></svg>2 · JÁ INSTALEI</span><br>
         Abrir direto o <b>app seguro</b>.
-        <div class="url">{{.App}}</div>
+        <div class="url"><span>{{.App}}</span><button class="copy" type="button" data-url="{{.App}}"><svg class="ico"><use href="#i-copy"/></svg>Copiar</button></div>
       </div>
     </div>
     {{end}}
@@ -223,6 +243,28 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
   para baixar e instalar o certificado (uma vez). Depois disso, use o QR de baixo
   para abrir o app direto. Mantenha o PC e o celular na mesma rede (ou Tailscale).
 </div>
+{{else}}
+<div class="empty">
+  <svg class="ico"><use href="#i-wifioff"/></svg>
+  <p>Nenhuma rede detectada. Conecte o PC ao <b>Wi-Fi</b> ou <b>Ethernet</b> —
+  esta página atualiza sozinha.</p>
+</div>
+{{end}}
+<script>
+  // Copy-to-clipboard for the setup/app URLs. Degrades gracefully where the
+  // Clipboard API is missing (older/insecure contexts): we just hide the button.
+  document.querySelectorAll('.copy').forEach(function (b) {
+    if (!navigator.clipboard) { b.style.display = 'none'; return; }
+    var html = b.innerHTML; // keep the icon to restore after the confirmation
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(b.dataset.url).then(function () {
+        b.classList.add('ok');
+        b.textContent = 'Copiado!';
+        setTimeout(function () { b.classList.remove('ok'); b.innerHTML = html; }, 1400);
+      });
+    });
+  });
+</script>
 </body></html>`))
 
 // printConsoleQR draws an ASCII QR of the setup URL to the terminal and tells

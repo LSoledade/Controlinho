@@ -1,5 +1,7 @@
 # 🖥️ PC Remote
 
+> **v2.1.0**
+
 Controle o PC Windows pelo celular, na rede local. Servidor Go + cliente PWA num único binário, sem nuvem, sem dependências externas, sem instalação extra.
 
 - **Trackpad** — mover, clique esquerdo/direito/meio, **arrastar**, scroll com 2 dedos, sensibilidade ajustável
@@ -38,12 +40,14 @@ Para o Chrome no Android oferecer **"Instalar app"** e registrar o service worke
 
 A solução, sem depender de nuvem ou serviço de terceiros, é a mesma técnica do [`mkcert`](https://github.com/FiloSottile/mkcert):
 
-1. Na **primeira execução**, o servidor gera uma **autoridade certificadora (CA) local** própria (`pc-remote-ca.crt` / `.key`, guardados ao lado do `.exe`).
-2. A cada boot ele emite um certificado HTTPS para os IPs atuais do PC (LAN + Tailscale), assinado por essa CA.
+1. Na **primeira execução**, o servidor gera uma **autoridade certificadora (CA) local** própria (`pc-remote-ca.crt` / `.key`, guardados num diretório por usuário e local da máquina — `%LocalAppData%\pc-remote` no Windows).
+2. Ele emite um certificado HTTPS para os IPs atuais do PC (LAN + Tailscale), assinado por essa CA, e o **reemite sob demanda** quando o IP muda ou o certificado se aproxima do vencimento.
 3. Você instala a CA no celular **uma única vez**. A partir daí o Chrome confia em tudo que o servidor assina → cadeado verde, contexto seguro, service worker e instalação do PWA funcionando.
 
 A chave privada da CA **nunca sai do PC**.
 
+> 💡 Se você já usava uma versão anterior (com a CA ao lado do `.exe`), ela é **migrada automaticamente** para o novo diretório na primeira execução desta versão — **não** é preciso reinstalar o certificado no celular após atualizar.
+>
 > ⚠️ **Não compartilhe o `pc-remote-ca.key`.** Quem tiver esse arquivo pode emitir certificados confiáveis para o seu celular. Ele já fica fora do controle de versão (veja `.gitignore`).
 
 ---
@@ -76,7 +80,7 @@ A página mostra **dois QRs por rede** (Wi-Fi local e Tailscale), já com o IP c
 - **QR amarelo (1 · primeira vez)** → abre o setup HTTP para instalar o certificado
 - **QR verde (2 · já instalei)** → abre direto o app seguro (HTTPS)
 
-Aponte a câmera do celular e siga. Se preferir digitar, os endereços estão logo abaixo de cada QR. (Rodando escondido pelo Task Scheduler não há console, então nada abre sozinho — acesse `http://127.0.0.1:8080/qr` no PC quando quiser.)
+Aponte a câmera do celular e siga. Se preferir digitar, os endereços estão logo abaixo de cada QR. (Rodando escondido pelo Task Scheduler não há console, então nada abre sozinho — acesse `http://127.0.0.1:8080/qr` no PC quando quiser. Ou simplesmente **rode o `pc-remote.exe` de novo**: detectando que já há uma instância ativa, ele apenas abre essa página de conexão no navegador em vez de tentar subir de novo.)
 
 ---
 
@@ -105,26 +109,47 @@ Aponte a câmera do celular e siga. Se preferir digitar, os endereços estão lo
 
 ## Uso
 
-- **Configurar o IP:** toque em **⚙ Ajustes** e informe `host:porta` (ex.: `192.168.0.70:8443`). Fica salvo no `localStorage`. Também dá pra ajustar a **sensibilidade do cursor** aí.
-- **Trackpad:** 1 dedo move · toque = clique esquerdo · toque com 2 dedos = clique direito · 2 dedos arrastando = rolar. O botão **✊ Arrastar** segura o botão esquerdo: ligue, toque e mova para arrastar janelas/seleções; solte o dedo para soltar.
+- **Configurar o IP:** toque em **⚙ Ajustes** e informe `host:porta` (ex.: `192.168.0.70:8443`). Fica salvo no `localStorage`. No mesmo painel dá pra ajustar **sensibilidade do cursor**, **velocidade de rolagem**, **rolagem natural** (inverte a direção do scroll), **"Pressionar Enter ao enviar texto"** e ligar/desligar a **vibração** (haptics ao tocar).
+- **Trackpad:** 1 dedo move · toque = clique esquerdo · toque com 2 dedos = clique direito · 2 dedos arrastando = rolar. O movimento tem **aceleração**: gestos lentos são precisos e flicks rápidos percorrem mais tela. O botão **✊ Arrastar** segura o botão esquerdo: ligue, toque e mova para arrastar janelas/seleções; solte o dedo para soltar.
 
 ### Argumentos
 
-| Flag        | Padrão           | Descrição                          |
-|-------------|------------------|------------------------------------|
-| `-http`     | `0.0.0.0:8080`   | Porta HTTP (setup + download da CA)|
-| `-https`    | `0.0.0.0:8443`   | Porta HTTPS (app + `wss://`)       |
-| `-version`  | —                | Mostra a versão e sai              |
+| Flag         | Padrão           | Descrição                                            |
+|--------------|------------------|------------------------------------------------------|
+| `-http`      | `0.0.0.0:8080`   | Porta HTTP (setup + download da CA)                  |
+| `-https`     | `0.0.0.0:8443`   | Porta HTTPS (app + `wss://`)                         |
+| `-install`   | —                | Auto-início (logon) + firewall, e inicia             |
+| `-uninstall` | —                | Remove o auto-início e o firewall                    |
+| `-version`   | —                | Mostra a versão e sai                                |
 
 ---
 
 ## Inicialização automática com o Windows
 
+A lógica de instalação vive **no próprio binário** — não há instalador separado:
+
 ```bat
-install.bat
+pc-remote.exe -install     :: registra no logon + abre o firewall, e já inicia
+pc-remote.exe -uninstall   :: remove a tarefa e a regra de firewall
 ```
 
-Registra uma tarefa no **Task Scheduler** (`pc-remote`, trigger `OnLogon`, usuário atual, sem admin), tenta abrir o firewall para as portas `8080`/`8443` (se rodar como admin) e já inicia o servidor. É reexecutável.
+(O `install.bat` é só um atalho de duplo-clique que chama `-install`.)
+
+Registra uma tarefa no **Task Scheduler** (`pc-remote`, trigger `OnLogon`, usuário atual, sem admin) e já inicia o servidor. A regra de firewall (`8080`/`8443`) precisa de admin: ele tenta direto e, se não tiver permissão, **se auto-eleva via UAC** só para criar a regra. É reexecutável.
+
+> **Por que uma tarefa de logon e não um serviço do Windows?** Injeção de teclado/mouse só funciona a partir da **sessão interativa** do usuário. Um serviço roda na *Session 0*, isolada, e **não conseguiria** controlar o desktop — por isso a tarefa roda como o usuário logado.
+
+### 🔔 Ícone na bandeja
+
+Rodando, o app coloca um **ícone na bandeja do sistema** (system tray) com:
+
+- **Abrir página de conexão** — mostra os QR codes para parear o celular
+- **Iniciar com o Windows** — liga/desliga o auto-início (equivale a `-install`/`-uninstall`)
+- **Sair** — encerra o servidor
+
+Isso resolve o "será que está rodando?" do modo silencioso: mesmo na build sem console (`-H windowsgui`), a bandeja é o caminho para abrir os QRs e encerrar.
+
+Há **proteção contra instância dupla:** se você rodar o `pc-remote.exe` enquanto outra instância já está no ar, ele não tenta subir de novo — apenas abre a página de conexão (`http://127.0.0.1:8080/qr`) no navegador. E se alguma porta (`8080`/`8443`) estiver ocupada por outro programa, o servidor mostra uma mensagem clara em vez de uma falha críptica.
 
 ---
 
@@ -132,7 +157,7 @@ Registra uma tarefa no **Task Scheduler** (`pc-remote`, trigger `OnLogon`, usuá
 
 - **Só aceita conexões da rede local / Tailscale:** loopback, `10/8`, `172.16/12`, `192.168/16`, Tailscale `100.64/10`, IPv6 ULA. Qualquer outra origem recebe `403`.
 - **Validação de origem (anti DNS-rebinding / CSRF):** o WebSocket só aceita upgrades cujo `Origin` bate com o host requisitado. Assim, um site malicioso aberto no celular (mesmo estando na sua LAN) **não** consegue abrir socket e controlar o PC — o `Origin` dele seria outro domínio.
-- **HTTPS confiável** via CA local (acima). A chave privada não sai do PC.
+- **HTTPS confiável** via CA local (acima). A chave privada não sai do PC e fica num diretório por usuário e local da máquina (`%LocalAppData%\pc-remote`, fora do controle de versão).
 - **Sem senha:** o modelo é confiar na topologia de rede. **Não exponha as portas para a internet.** Para acesso externo, use Tailscale (o range `100.64/10` já é aceito).
 
 > ⚠️ Ações de **energia** (desligar/reiniciar) não têm desfazer — confirme com cuidado.
@@ -165,7 +190,9 @@ Teclas reconhecidas: `ctrl alt shift win`, `enter esc tab backspace space del in
 
 ## ⚙️ Decisão de implementação (input sem CGO)
 
-O prompt original pedia `github.com/go-vgo/robotgo` e `github.com/itchyny/volume-go`. **Ambos exigem CGO + MinGW (GCC)**, o que quebraria o "binário único, zero instalação". Em vez disso, o input chama a **Win32 API diretamente via `syscall`** (`mouse_event`, `keybd_event`, `MapVirtualKeyW`, `SendMessage`) — mesmo subsistema, sem GCC, binário menor. Volume/mídia via teclas de mídia do Windows (funcionam com qualquer saída de áudio). Única dependência externa: `github.com/gorilla/websocket` (pura Go).
+O prompt original pedia `github.com/go-vgo/robotgo` e `github.com/itchyny/volume-go`. **Ambos exigem CGO + MinGW (GCC)**, o que quebraria o "binário único, zero instalação". Em vez disso, o input chama a **Win32 API diretamente via `syscall`** (`mouse_event`, `keybd_event`, `MapVirtualKeyW`, `SendMessage`) — mesmo subsistema, sem GCC, binário menor. Volume/mídia via teclas de mídia do Windows (funcionam com qualquer saída de áudio).
+
+Dependências (todas Go puro, **sem CGO** na build Windows): `github.com/gorilla/websocket` (WebSocket), `github.com/skip2/go-qrcode` (QR) e `fyne.io/systray` (ícone na bandeja — no Windows usa `golang.org/x/sys`, sem CGO). O systray só é importado em arquivos com build tag `windows`, então a build de desenvolvimento em Linux/macOS (`CGO_ENABLED=0`) continua compilando.
 
 ---
 
@@ -173,15 +200,19 @@ O prompt original pedia `github.com/go-vgo/robotgo` e `github.com/itchyny/volume
 
 ```
 pc-remote/
-├── main.go            # Servidor HTTP+HTTPS, WebSocket, dispatch, allowlist, CheckOrigin
-├── tlsx.go            # CA local + emissão de certificado (mkcert-style), Go puro
+├── main.go            # Servidor HTTP+HTTPS, WebSocket, dispatch, allowlist, CheckOrigin, flags -install/-uninstall
+├── tlsx.go            # CA local em %LocalAppData% (+ migração) + emissão dinâmica do certificado (mkcert-style), Go puro
 ├── qr.go              # Página /qr + QR no terminal + auto-open do navegador
 ├── input_windows.go   # Input via user32.dll (mouse/teclado/texto/monitor)
 ├── input_stub.go      # Stub no-op para build em Linux/macOS (dev)
-├── gen_icons.go       # Gerador de ícones do PWA (go run gen_icons.go)
+├── install_windows.go # Auto-início: Task Scheduler + firewall (com auto-elevação UAC)
+├── install_other.go   # Stubs de install para Linux/macOS (dev)
+├── tray_windows.go    # Ícone na bandeja (fyne.io/systray)
+├── tray_other.go      # Sem bandeja fora do Windows; bloqueia no contexto (dev)
+├── gen_icons.go       # Gerador de ícones do PWA + icon.ico da bandeja (go run gen_icons.go)
 ├── go.mod / go.sum
-├── client/            # PWA single-file + manifest + service worker + ícones
-├── install.bat        # Task Scheduler (logon) + firewall
+├── client/            # PWA single-file + manifest + service worker + ícones (PNG + icon.ico)
+├── install.bat        # Atalho de duplo-clique para `pc-remote.exe -install`
 └── README.md
 ```
 
@@ -193,7 +224,7 @@ pc-remote/
 - **"Sua conexão não é particular" no HTTPS:** a CA ainda não foi instalada/confiada no celular. Volte ao passo de instalação do certificado.
 - **Não conecta:** PC e celular na mesma Wi-Fi; firewall liberando `8080`/`8443`; IP correto em **⚙ Ajustes**.
 - **Mouse/teclado não responde:** rode como usuário logado (input só funciona em sessão interativa).
-- **Trocou de rede e o HTTPS quebrou:** o certificado é reemitido a cada boot com os IPs atuais; reinicie o `pc-remote.exe`. A CA continua válida (não precisa reinstalar no celular).
+- **Trocou de rede e o HTTPS quebrou:** normalmente **não** precisa mais reiniciar — o servidor reemite o certificado HTTPS sob demanda quando o IP do PC muda (novo Wi-Fi / DHCP) ou quando o certificado se aproxima do vencimento. A CA continua válida (não precisa reinstalar no celular). Se mesmo assim não pegar, reinicie o `pc-remote.exe`.
 
 ---
 

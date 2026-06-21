@@ -28,14 +28,15 @@ import (
 //go:embed all:client
 var clientFS embed.FS
 
-const version = "2.0.0"
+const version = "2.1.0"
 
 // --- Command payload ---
 
 // cmd is the JSON envelope exchanged over the WebSocket.
 // Example: {"type":"mouse_move","dx":3,"dy":-2}
-//          {"type":"shortcut","keys":["ctrl","w"]}
-//          {"type":"type","text":"hello"}
+//
+//	{"type":"shortcut","keys":["ctrl","w"]}
+//	{"type":"type","text":"hello"}
 type cmd struct {
 	Type   string   `json:"type"`
 	DX     int      `json:"dx,omitempty"`
@@ -135,6 +136,10 @@ func init() {
 // real embedded file both return index.html (single-file app), so deep links and
 // unknown assets fall back to the UI instead of 404.
 func handleClient(w http.ResponseWriter, r *http.Request) {
+	if !allowedHost(r.RemoteAddr) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -156,6 +161,10 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 // noCache=true is for the service worker, which must always be revalidated.
 func serveTyped(name, ctype string, noCache bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !allowedHost(r.RemoteAddr) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		data, err := clientFS.ReadFile("client/" + name)
 		if err != nil {
 			http.NotFound(w, r)
@@ -451,6 +460,45 @@ func runPower(name string, args ...string) error {
 	return nil
 }
 
+// probeHost returns the host to reach a locally-bound listener: the bound host,
+// or loopback when the bind address is a wildcard (0.0.0.0 / :: / empty). This
+// lets the single-instance probe and the re-launch browser-open work even when
+// an instance is pinned to a specific interface, not just the default 0.0.0.0.
+func probeHost(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" || host == "0.0.0.0" || host == "::" {
+		return "127.0.0.1"
+	}
+	return host
+}
+
+// alreadyRunning probes the /info endpoint of the address we're about to bind to
+// detect a pc-remote instance that already holds it. It returns true only when
+// /info answers 200 with our JSON shape (a "version" field), so an unrelated
+// server on the same port won't be mistaken for us.
+func alreadyRunning(httpAddr string) bool {
+	port := portOf(httpAddr)
+	if port == "" {
+		return false
+	}
+	client := &http.Client{Timeout: 400 * time.Millisecond}
+	resp, err := client.Get("http://" + probeHost(httpAddr) + port + "/info")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+	var info struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return false
+	}
+	return info.Version != ""
+}
+
 // --- server entrypoint ---
 
 func main() {
@@ -458,6 +506,9 @@ func main() {
 	httpsAddr := flag.String("https", "0.0.0.0:8443", "HTTPS listen address (PWA install + wss)")
 	openUI := flag.Bool("open", true, "open the QR/connect page in the browser on startup (when run with a console)")
 	showVer := flag.Bool("version", false, "print version and exit")
+	doInstall := flag.Bool("install", false, "register auto-start at logon + open the firewall, then start")
+	doUninstall := flag.Bool("uninstall", false, "remove the auto-start task and firewall rule")
+	setupFW := flag.Bool("setupfw", false, "(internal) add the firewall rule then exit — used for UAC elevation")
 	flag.Parse()
 
 	if *showVer {
@@ -465,20 +516,51 @@ func main() {
 		return
 	}
 
+	// Internal: the elevated child spawned by -install adds the firewall rule and exits.
+	if *setupFW {
+		if err := addFirewallRule(); err != nil {
+			log.Fatalf("firewall: %v", err)
+		}
+		return
+	}
+
+	if *doInstall {
+		if err := installSelf(true); err != nil {
+			log.Fatalf("install: %v", err)
+		}
+		log.Printf("pronto. No celular: abra http://SEU-IP:8080 e siga o passo a passo (ou veja a bandeja do sistema).")
+		return
+	}
+	if *doUninstall {
+		if err := uninstallSelf(); err != nil {
+			log.Fatalf("uninstall: %v", err)
+		}
+		return
+	}
+
 	httpPortValue = portOf(*httpAddr)
 	httpsPortValue = portOf(*httpsAddr)
 
-	// Build the TLS material covering every address the phone might use.
-	ips, names := certSubjects()
-	bundle, err := ensureTLS(dataDir(), ips, names)
+	// If an instance is already listening, treat a re-launch (e.g. the user
+	// double-clicked the exe again) as "show me the connect page" rather than
+	// crashing on a port conflict. Open the browser unconditionally here: this
+	// path is only hit on a manual re-launch (the Task-Scheduler logon launch
+	// runs when nothing is up yet), so the GUI/no-console double-click — the
+	// whole point — still gets its connect page.
+	if alreadyRunning(*httpAddr) {
+		log.Printf("pc-remote já está em execução — abrindo a página de conexão")
+		openBrowser("http://" + probeHost(*httpAddr) + portOf(*httpAddr) + "/qr")
+		return
+	}
+
+	// Set up the dynamic certificate manager. It owns the persistent CA (with
+	// migration from the legacy location) and mints leaves on demand, re-minting
+	// when the machine's IPs change or the leaf nears expiry — no restart needed.
+	mgr, err := newCertManager(dataDir())
 	if err != nil {
 		log.Fatalf("tls: %v", err)
 	}
-	caCertPEM = bundle.caCertPEM
-	cert, err := tls.X509KeyPair(bundle.leafCertPEM, bundle.leafKeyPEM)
-	if err != nil {
-		log.Fatalf("tls keypair: %v", err)
-	}
+	caCertPEM = mgr.caPEM()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", handleWS)
@@ -501,7 +583,19 @@ func main() {
 		Addr:              *httpsAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
-		TLSConfig:         &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
+		TLSConfig:         &tls.Config{GetCertificate: mgr.GetCertificate, MinVersion: tls.VersionTLS12},
+	}
+
+	// Bind both listeners up front so a port conflict fails fast with an
+	// actionable message instead of crashing inside a goroutine after startup.
+	httpLn, err := net.Listen("tcp", *httpAddr)
+	if err != nil {
+		log.Fatalf("porta %s em uso — outra instância do pc-remote? feche-a, ou rode com -http em outra porta: %v", *httpAddr, err)
+	}
+	httpsLn, err := net.Listen("tcp", *httpsAddr)
+	if err != nil {
+		_ = httpLn.Close()
+		log.Fatalf("porta %s em uso — outra instância do pc-remote? feche-a, ou rode com -https em outra porta: %v", *httpsAddr, err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -518,7 +612,7 @@ func main() {
 		}
 		log.Printf("allowed networks: local (10/172.16/192.168) and Tailscale (100.64/10)")
 		log.Printf("connect page (QR): http://127.0.0.1%s/qr", portOf(*httpAddr))
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpSrv.Serve(httpLn); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("http listen: %v", err)
 		}
 	}()
@@ -534,17 +628,21 @@ func main() {
 	}
 
 	go func() {
-		if err := httpsSrv.ListenAndServeTLS("", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpsSrv.ServeTLS(httpsLn, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("https listen: %v", err)
 		}
 	}()
 
-	<-ctx.Done()
-	log.Printf("shutting down…")
-	shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_ = httpSrv.Shutdown(shutCtx)
-	_ = httpsSrv.Shutdown(shutCtx)
+	// Block on the platform UI: the Windows system tray (until "Sair" or a
+	// termination signal) or, on other OSes, simply the context. Either way, run
+	// a graceful shutdown of both servers on the way out.
+	runUI(ctx, *httpAddr, func() {
+		log.Printf("shutting down…")
+		shutCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(shutCtx)
+		_ = httpsSrv.Shutdown(shutCtx)
+	})
 }
 
 // certSubjects returns the IPs and DNS names the leaf certificate should cover.

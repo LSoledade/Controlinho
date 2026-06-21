@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="PC Remote">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#141823">
 <title>PC Remote</title>
 
 <link rel="manifest" href="manifest.webmanifest">
@@ -18,7 +18,7 @@
 <style>
   :root {
     --bg: #0b0d12; --bg-1: #12151d; --bg-2: #181c26; --bg-3: #20252f;
-    --fg: #eef1f6; --fg-dim: #9aa3b4; --fg-faint: #5f6776;
+    --fg: #eef1f6; --fg-dim: #9aa3b4; --fg-faint: #707a8e;
     --accent: #5b9dff; --accent-press: #4585ee;
     --danger: #ff6b6b; --danger-press: #e85555;
     --good: #44d07b; --warn: #ffc24b;
@@ -47,12 +47,16 @@
     background: linear-gradient(180deg, #141823, var(--bg-1));
     border-bottom: 1px solid var(--border-soft); z-index: 20;
   }
-  .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; }
+  .brand { display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+  .brand .name { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 16px; }
   .brand .ico { width: 22px; height: 22px; color: var(--accent); }
+  .brand .host { font-size: 10.5px; color: var(--fg-faint); font-weight: 500; line-height: 1;
+    margin-left: 30px; max-width: 42vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .spacer { flex: 1 1 auto; }
   .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg-dim);
     font-weight: 500; background: var(--bg-2); border: 1px solid var(--border-soft);
-    padding: 6px 10px; border-radius: 999px; }
+    padding: 6px 10px; border-radius: 999px; cursor: pointer; transition: background .12s; }
+  .chip:active { background: var(--bg-3); transform: scale(.96); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger);
     box-shadow: 0 0 0 0 currentColor; transition: background .25s, color .25s; }
   .dot.connecting { background: var(--warn); color: var(--warn); animation: pulse 1.2s infinite; }
@@ -118,6 +122,20 @@
   .stack .lbl { font-size: 11px; font-weight: 600; color: var(--fg-dim); }
   button.toggle.on { background: linear-gradient(180deg, var(--accent), var(--accent-press)); border-color: transparent; color: #fff; box-shadow: 0 4px 14px rgba(91,157,255,.3); }
 
+  /* settings toggle rows */
+  .settings-toggles { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 4px; }
+  button.toggle.setting { position: relative; width: 100%; justify-content: space-between; gap: 10px; min-height: 44px;
+    font-size: 13.5px; font-weight: 550; text-align: left; padding: 8px 12px; background: var(--bg-2); color: var(--fg-dim); }
+  button.toggle.setting span { flex: 1 1 auto; text-align: left; }
+  button.toggle.setting::after { content: ""; flex: 0 0 auto; width: 40px; height: 22px; border-radius: 999px;
+    background: var(--bg-3); border: 1px solid var(--border); position: relative; transition: background .15s; }
+  button.toggle.setting::before { content: ""; position: absolute; right: 28px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--fg-faint); transition: transform .15s, background .15s; }
+  button.toggle.setting.on { background: var(--bg-2); color: var(--fg); box-shadow: none; }
+  button.toggle.setting.on::after { background: var(--accent); border-color: transparent; }
+  button.toggle.setting.on::before { transform: translateX(18px); background: #fff; }
+  button.toggle.setting:active { transform: none; background: var(--bg-3); }
+
   /* fill helpers — make rows share the viewport, no scroll */
   .grid { display: grid; gap: 8px; }
   .grid.c2 { grid-template-columns: repeat(2, 1fr); }
@@ -138,8 +156,14 @@
   .pad .hint { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: var(--fg-faint);
     font-size: 12px; padding: 0 24px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 7px; }
   .pad .hint .ico { width: 26px; height: 26px; opacity: .5; }
+  .pad .hint { transition: opacity .5s ease; }
+  .pad .hint.faded { opacity: 0; }
   .pad.dragging { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent), 0 0 26px rgba(91,157,255,.22); }
   .pad.dragging .hint { color: var(--accent); }
+  .ripple { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+    background: var(--accent); opacity: .35; pointer-events: none; transform: scale(0);
+    animation: ripple .5s ease-out forwards; will-change: transform, opacity; }
+  @keyframes ripple { to { transform: scale(4.5); opacity: 0; } }
   .mouse-buttons { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr 1.25fr; gap: 8px; }
   .mouse-buttons button { min-height: 56px; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; }
   .mouse-buttons button .ico { width: 22px; height: 22px; }
@@ -232,10 +256,13 @@
 </defs></svg>
 
 <div class="topbar">
-  <span class="brand"><svg class="ico"><use href="#i-monitor"/></svg> PC Remote</span>
+  <span class="brand">
+    <span class="name"><svg class="ico"><use href="#i-monitor"/></svg> PC Remote</span>
+    <span class="host" id="hostLabel"></span>
+  </span>
   <span class="spacer"></span>
   <button class="install-pill" id="installBtn" type="button"><svg class="ico"><use href="#i-download"/></svg> Instalar</button>
-  <span class="chip"><span id="dot" class="dot offline"></span><span id="statusText">desconectado</span></span>
+  <span class="chip" id="statusChip" role="button" tabindex="0" aria-label="Reconectar"><span id="dot" class="dot offline"></span><span id="statusText">desconectado</span></span>
   <button class="icon-btn" id="ipBtn" type="button" aria-label="Ajustes"><svg class="ico"><use href="#i-settings"/></svg></button>
 </div>
 
@@ -248,6 +275,13 @@
     <a id="bannerCa" href="/ca.crt"><svg class="ico"><use href="#i-download"/></svg> Certificado</a>
     <a id="bannerHttps" class="primary" href="#"><svg class="ico"><use href="#i-lock"/></svg> Versão segura</a>
   </div>
+</div>
+
+<!-- iOS INSTALL HINT (Safari has no beforeinstallprompt) -->
+<div class="install-banner" id="iosBanner">
+  <button class="close-x" id="iosClose" type="button" aria-label="Fechar"><svg class="ico"><use href="#i-x"/></svg></button>
+  <div class="head"><svg class="ico"><use href="#i-phone"/></svg><h4>Instalar na Tela de Início</h4></div>
+  <p>No iPhone/iPad, toque em <b>Compartilhar</b> e depois em <b>"Adicionar à Tela de Início"</b> para usar como app.</p>
 </div>
 
 <main>
@@ -355,6 +389,13 @@
     <input class="text-input" id="ipInput" type="text" placeholder="192.168.0.10:8443" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="url">
     <div class="field-label" style="margin-top:16px">Sensibilidade do cursor: <b id="sensVal">1.5×</b></div>
     <input class="slider" id="sensInput" type="range" min="0.5" max="3" step="0.1" value="1.5">
+    <div class="field-label" style="margin-top:12px">Velocidade de rolagem: <b id="scrollVal">1.0×</b></div>
+    <input class="slider" id="scrollInput" type="range" min="0.5" max="3" step="0.1" value="1">
+    <div class="settings-toggles">
+      <button class="toggle setting" id="naturalToggle" type="button"><span>Rolagem natural</span></button>
+      <button class="toggle setting" id="enterToggle" type="button"><span>Pressionar Enter ao enviar texto</span></button>
+      <button class="toggle setting" id="hapticsToggle" type="button"><span>Vibração ao tocar</span></button>
+    </div>
     <div class="row">
       <button class="ghost" id="ipCancel" type="button">Cancelar</button>
       <button class="primary" id="ipSave" type="button"><svg class="ico"><use href="#i-check"/></svg> Conectar</button>
@@ -381,6 +422,8 @@
   "use strict";
 
   const STORAGE_KEY = "pcremote.host", TAB_KEY = "pcremote.tab", SENS_KEY = "pcremote.sens";
+  const SCROLL_KEY = "pcremote.scroll", NATURAL_KEY = "pcremote.natural", ENTER_KEY = "pcremote.enter";
+  const HAPTICS_KEY = "pcremote.haptics", HINT_KEY = "pcremote.hintSeen", IOS_KEY = "pcremote.iosHint";
   const TABS = ["trackpad", "media", "keyboard", "power"];
 
   function getHost() { return localStorage.getItem(STORAGE_KEY) || location.host || "127.0.0.1:8443"; }
@@ -392,7 +435,14 @@
     return h;
   }
   let sensitivity = parseFloat(localStorage.getItem(SENS_KEY) || "1.5") || 1.5;
-  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 10); } catch (e) {} }
+  let scrollSpeed = parseFloat(localStorage.getItem(SCROLL_KEY) || "1") || 1;
+  let naturalScroll = localStorage.getItem(NATURAL_KEY) === "1";
+  let enterAfterText = localStorage.getItem(ENTER_KEY) === "1";
+  let haptics = localStorage.getItem(HAPTICS_KEY) !== "0"; // default ON
+  // pointer acceleration: effective = sensitivity * (1 + min(speed * K, CAP))
+  const ACCEL_K = 6, ACCEL_CAP = 3;
+  let moveRemX = 0, moveRemY = 0, moveT = 0; // sub-pixel remainder + last sample time
+  function buzz(ms) { try { if (haptics && navigator.vibrate) navigator.vibrate(ms || 10); } catch (e) {} }
 
   const toastEl = document.getElementById("toast");
   const toastMsg = document.getElementById("toastMsg");
@@ -420,6 +470,8 @@
   const dot = document.getElementById("dot");
   const statusText = document.getElementById("statusText");
   let ws = null, manualClose = false, reconnectDelay = 500, reconnectTimer = null, pending = [];
+  let wsGen = 0; // monotonic connection generation: stale sockets no-op their handlers
+  const RECONNECT_BASE = 500;
   const PENDING_MAX = 200;
   function setStatus(state, text) { dot.className = "dot " + state; statusText.textContent = text; }
   function send(obj) {
@@ -435,13 +487,18 @@
     const host = normalizeHost(getHost());
     if (!host) { setStatus("offline", "configure o IP"); return; }
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    // tear down any previous socket so its onclose can't schedule a duplicate reconnect
+    if (ws) { ws.onopen = ws.onclose = ws.onerror = ws.onmessage = null; try { ws.close(); } catch (e) {} ws = null; }
+    const gen = ++wsGen; // this connection's identity
     manualClose = false; setStatus("connecting", "conectando…");
     const url = (location.protocol === "https:" ? "wss://" : "ws://") + host + "/ws";
-    try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
-    ws.onopen = () => { setStatus("online", "conectado"); reconnectDelay = 500; flushPending(); };
-    ws.onclose = () => { if (manualClose) { setStatus("offline", "desconectado"); return; } setStatus("offline", "reconectando…"); scheduleReconnect(); };
-    ws.onerror = () => setStatus("offline", "erro de conexão");
-    ws.onmessage = (ev) => { try { const m = JSON.parse(ev.data); if (m && m.ok === false && m.error) toast("Erro: " + m.error); } catch (e) {} };
+    let sock;
+    try { sock = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
+    ws = sock;
+    sock.onopen = () => { if (gen !== wsGen) return; setStatus("online", "conectado"); reconnectDelay = RECONNECT_BASE; flushPending(); };
+    sock.onclose = () => { if (gen !== wsGen) return; if (manualClose) { setStatus("offline", "desconectado"); return; } setStatus("offline", "reconectando…"); scheduleReconnect(); };
+    sock.onerror = () => { if (gen !== wsGen) return; setStatus("offline", "erro de conexão"); };
+    sock.onmessage = (ev) => { if (gen !== wsGen) return; try { const m = JSON.parse(ev.data); if (m && m.ok === false && m.error) toast("Erro: " + m.error); } catch (e) {} };
   }
   function scheduleReconnect() {
     if (reconnectTimer) return;
@@ -452,21 +509,56 @@
     if (document.visibilityState !== "visible") return;
     if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) connect();
   });
+  // tap the status chip to force an immediate reconnect
+  function forceReconnect() {
+    buzz(12);
+    reconnectDelay = RECONNECT_BASE;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    connect();
+  }
+  const statusChip = document.getElementById("statusChip");
+  statusChip.addEventListener("click", forceReconnect);
+  statusChip.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); forceReconnect(); } });
 
   // ---- settings ----
   const ipBtn = document.getElementById("ipBtn"), ipInput = document.getElementById("ipInput");
   const sensInput = document.getElementById("sensInput"), sensVal = document.getElementById("sensVal");
+  const scrollInput = document.getElementById("scrollInput"), scrollVal = document.getElementById("scrollVal");
+  const naturalToggle = document.getElementById("naturalToggle"), enterToggle = document.getElementById("enterToggle");
+  const hapticsToggle = document.getElementById("hapticsToggle"), hostLabel = document.getElementById("hostLabel");
   function showSens() { sensVal.textContent = parseFloat(sensInput.value).toFixed(1) + "×"; }
+  function showScroll() { scrollVal.textContent = parseFloat(scrollInput.value).toFixed(1) + "×"; }
+  function updateHostLabel() { hostLabel.textContent = normalizeHost(getHost()); }
   sensInput.value = String(sensitivity); showSens();
+  scrollInput.value = String(scrollSpeed); showScroll();
+  naturalToggle.classList.toggle("on", naturalScroll);
+  enterToggle.classList.toggle("on", enterAfterText);
+  hapticsToggle.classList.toggle("on", haptics);
+  updateHostLabel();
   sensInput.addEventListener("input", showSens);
-  ipBtn.addEventListener("click", () => { ipInput.value = getHost(); sensInput.value = String(sensitivity); showSens(); openModal("ipModal"); setTimeout(() => ipInput.focus(), 50); });
+  scrollInput.addEventListener("input", showScroll);
+  naturalToggle.addEventListener("click", () => { naturalScroll = !naturalScroll; naturalToggle.classList.toggle("on", naturalScroll); buzz(8); });
+  enterToggle.addEventListener("click", () => { enterAfterText = !enterAfterText; enterToggle.classList.toggle("on", enterAfterText); buzz(8); });
+  hapticsToggle.addEventListener("click", () => { haptics = !haptics; hapticsToggle.classList.toggle("on", haptics); buzz(8); });
+  ipBtn.addEventListener("click", () => {
+    ipInput.value = getHost(); sensInput.value = String(sensitivity); showSens();
+    scrollInput.value = String(scrollSpeed); showScroll();
+    naturalToggle.classList.toggle("on", naturalScroll);
+    enterToggle.classList.toggle("on", enterAfterText);
+    hapticsToggle.classList.toggle("on", haptics);
+    openModal("ipModal"); setTimeout(() => ipInput.focus(), 50);
+  });
   document.getElementById("ipCancel").addEventListener("click", () => closeModal("ipModal"));
   function saveSettings() {
     sensitivity = parseFloat(sensInput.value) || 1.5; localStorage.setItem(SENS_KEY, String(sensitivity));
+    scrollSpeed = parseFloat(scrollInput.value) || 1; localStorage.setItem(SCROLL_KEY, String(scrollSpeed));
+    localStorage.setItem(NATURAL_KEY, naturalScroll ? "1" : "0");
+    localStorage.setItem(ENTER_KEY, enterAfterText ? "1" : "0");
+    localStorage.setItem(HAPTICS_KEY, haptics ? "1" : "0");
     const h = normalizeHost(ipInput.value);
     if (!h) { toast("Informe um endereço válido"); return; }
-    setHost(h); closeModal("ipModal");
-    if (ws) { manualClose = true; try { ws.close(); } catch (e) {} }
+    setHost(h); closeModal("ipModal"); updateHostLabel();
+    // connect() tears down the previous socket (generation guard prevents zombie reconnects)
     connect();
   }
   document.getElementById("ipSave").addEventListener("click", saveSettings);
@@ -481,7 +573,12 @@
 
   // ---- text input ----
   const typeInput = document.getElementById("typeInput");
-  function sendType() { const t = typeInput.value; if (!t) return; send({ type: "type", text: t }); typeInput.value = ""; buzz(); toast("Texto enviado"); }
+  function sendType() {
+    const t = typeInput.value; if (!t) return;
+    send({ type: "type", text: t });
+    if (enterAfterText) send({ type: "key", key: "enter" });
+    typeInput.value = ""; buzz(); toast("Texto enviado");
+  }
   document.getElementById("typeSend").addEventListener("click", sendType);
   typeInput.addEventListener("keydown", e => { if (e.key === "Enter") sendType(); });
 
@@ -504,8 +601,26 @@
 
   // ---- trackpad ----
   const pad = document.getElementById("pad"), dragToggle = document.getElementById("dragToggle");
+  const padHint = pad.querySelector(".hint");
   const TAP_MS = 220, TAP_MOVE_TOL = 12;
   let dragMode = false, dragging = false;
+  if (localStorage.getItem(HINT_KEY)) padHint.classList.add("faded");
+  function fadeHint() {
+    if (padHint.classList.contains("faded")) return;
+    padHint.classList.add("faded");
+    try { localStorage.setItem(HINT_KEY, "1"); } catch (e) {}
+  }
+  // subtle ripple at touch coords inside #pad (transform/opacity only)
+  function ripple(clientX, clientY) {
+    const r = pad.getBoundingClientRect();
+    const el = document.createElement("span");
+    el.className = "ripple";
+    el.style.left = (clientX - r.left) + "px";
+    el.style.top = (clientY - r.top) + "px";
+    pad.appendChild(el);
+    el.addEventListener("animationend", () => el.remove());
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 700);
+  }
   dragToggle.addEventListener("click", () => {
     dragMode = !dragMode; dragToggle.classList.toggle("on", dragMode);
     buzz(dragMode ? 20 : 8); toast(dragMode ? "Modo arrastar: toque e mova" : "Modo arrastar desligado");
@@ -517,12 +632,17 @@
   function endDrag() { if (!dragging) return; dragging = false; pad.classList.remove("dragging"); send({ type: "mouse_up", button: "left" }); }
   pad.addEventListener("touchstart", function (e) {
     e.preventDefault();
+    fadeHint();
     for (const t of e.changedTouches) g.fingers[t.identifier] = { x: t.clientX, y: t.clientY };
     const n = count(g.fingers);
     if (g.mode === "idle") { g.startT = Date.now(); g.travel = 0; g.maxFingers = 0; }
     g.maxFingers = Math.max(g.maxFingers, n);
-    if (n === 1) { g.mode = "move"; g.movePrev = { ...g.fingers[Object.keys(g.fingers)[0]] }; if (dragMode && !dragging) startDrag(); }
-    else if (n === 2) { g.mode = "scroll"; g.movePrev = null; const ids = Object.keys(g.fingers); g.scrollPrev = mid(g.fingers[ids[0]], g.fingers[ids[1]]); }
+    if (n === 1) { g.mode = "move"; g.movePrev = { ...g.fingers[Object.keys(g.fingers)[0]] }; moveRemX = moveRemY = 0; moveT = 0; if (dragMode && !dragging) startDrag(); }
+    else if (n === 2) {
+      // a second finger landing while dragging: release the held left button cleanly first
+      if (dragging) endDrag();
+      g.mode = "scroll"; g.movePrev = null; const ids = Object.keys(g.fingers); g.scrollPrev = mid(g.fingers[ids[0]], g.fingers[ids[1]]);
+    }
     else { g.mode = "idle"; }
   }, { passive: false });
   pad.addEventListener("touchmove", function (e) {
@@ -533,20 +653,31 @@
       const cur = g.fingers[Object.keys(g.fingers)[0]];
       const rdx = cur.x - g.movePrev.x, rdy = cur.y - g.movePrev.y;
       g.travel += Math.abs(rdx) + Math.abs(rdy);
-      const dx = Math.round(rdx * sensitivity), dy = Math.round(rdy * sensitivity);
+      // velocity-based acceleration: slow = precise, fast flicks travel farther
+      const now = Date.now();
+      const dt = moveT ? Math.max(now - moveT, 1) : 16; moveT = now;
+      const speed = Math.hypot(rdx, rdy) / dt; // px per ms
+      const accel = 1 + Math.min(speed * ACCEL_K, ACCEL_CAP);
+      const factor = sensitivity * accel;
+      // accumulate sub-pixel remainder so slow movement isn't lost to rounding
+      const fx = rdx * factor + moveRemX, fy = rdy * factor + moveRemY;
+      const dx = Math.round(fx), dy = Math.round(fy);
+      moveRemX = fx - dx; moveRemY = fy - dy;
       if (dx || dy) send({ type: "mouse_move", dx: dx, dy: dy });
       g.movePrev = { x: cur.x, y: cur.y };
     } else if (n >= 2 && g.mode === "scroll" && g.scrollPrev) {
       const ids = Object.keys(g.fingers).slice(0, 2);
       const m = mid(g.fingers[ids[0]], g.fingers[ids[1]]);
-      const dy = Math.round((m.y - g.scrollPrev.y) * sensitivity);
+      const dy = Math.round((m.y - g.scrollPrev.y) * sensitivity * scrollSpeed);
       g.travel += Math.abs(m.y - g.scrollPrev.y);
-      if (dy) send({ type: "mouse_scroll", delta: -dy });
+      // natural scroll flips the sign (content follows the fingers)
+      if (dy) send({ type: "mouse_scroll", delta: naturalScroll ? dy : -dy });
       g.scrollPrev = m;
     }
   }, { passive: false });
   pad.addEventListener("touchend", function (e) {
     e.preventDefault();
+    const last = e.changedTouches[e.changedTouches.length - 1];
     for (const t of e.changedTouches) delete g.fingers[t.identifier];
     const n = count(g.fingers);
     if (n === 0) {
@@ -555,17 +686,18 @@
         const dur = Date.now() - g.startT;
         if (g.travel <= TAP_MOVE_TOL && dur <= TAP_MS) {
           if (g.maxFingers >= 2) { buzz(); send({ type: "mouse_click", button: "right" }); }
-          else if (g.maxFingers === 1) { buzz(); send({ type: "mouse_click", button: "left" }); }
+          else if (g.maxFingers === 1) { buzz(); send({ type: "mouse_click", button: "left" }); if (last) ripple(last.clientX, last.clientY); }
         }
       }
       g.mode = "idle"; g.movePrev = null; g.scrollPrev = null;
-    } else if (n === 1) { g.mode = "move"; g.movePrev = { ...g.fingers[Object.keys(g.fingers)[0]] }; g.scrollPrev = null; }
+    } else if (n === 1) { g.mode = "move"; g.movePrev = { ...g.fingers[Object.keys(g.fingers)[0]] }; g.scrollPrev = null; moveRemX = moveRemY = 0; moveT = 0; }
   }, { passive: false });
   pad.addEventListener("touchcancel", function () { g.fingers = {}; if (dragging) endDrag(); g.mode = "idle"; g.movePrev = null; g.scrollPrev = null; }, { passive: false });
   pad.addEventListener("contextmenu", e => e.preventDefault());
 
   // ---- install: real PWA CTA via beforeinstallprompt ----
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isLocalhost = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(location.host);
   const installBtn = document.getElementById("installBtn");
   let deferredPrompt = null;
   window.addEventListener("beforeinstallprompt", (e) => {
@@ -581,9 +713,21 @@
   });
   window.addEventListener("appinstalled", () => { installBtn.classList.remove("show"); toast("App instalado!"); });
 
+  // ---- iOS install hint (Safari has no beforeinstallprompt) ----
+  // Only on the secure (https/localhost) origin: on the insecure HTTP setup page
+  // the install banner already guides the user, so we don't stack two banners.
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const iosBanner = document.getElementById("iosBanner");
+  document.getElementById("iosClose").addEventListener("click", () => {
+    iosBanner.classList.remove("show");
+    try { localStorage.setItem(IOS_KEY, "1"); } catch (e) {}
+  });
+  if (isIOS && !isStandalone && (location.protocol === "https:" || isLocalhost) && !localStorage.getItem(IOS_KEY)) {
+    iosBanner.classList.add("show");
+  }
+
   // ---- install banner (HTTP setup only) ----
   const banner = document.getElementById("installBanner"), bannerHttps = document.getElementById("bannerHttps");
-  const isLocalhost = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(location.host);
   document.getElementById("bannerClose").addEventListener("click", () => { banner.classList.remove("show"); try { sessionStorage.setItem("pcremote.bannerDismissed", "1"); } catch (e) {} });
   function maybeShowBanner(info) {
     if (isStandalone || location.protocol === "https:" || isLocalhost) return;

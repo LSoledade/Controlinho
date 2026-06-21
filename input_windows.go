@@ -5,6 +5,7 @@ package main
 import (
 	"strings"
 	"syscall"
+	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -27,15 +28,16 @@ var (
 
 // mouse_event flags
 const (
-	mMove     = 0x0001
-	mLeftD    = 0x0002
-	mLeftU    = 0x0004
-	mRightD   = 0x0008
-	mRightU   = 0x0010
-	mMiddleD  = 0x0020
-	mMiddleU  = 0x0040
-	mWheel    = 0x0800
-	mAbsolute = 0x8000
+	mMove        = 0x0001
+	mLeftD       = 0x0002
+	mLeftU       = 0x0004
+	mRightD      = 0x0008
+	mRightU      = 0x0010
+	mMiddleD     = 0x0020
+	mMiddleU     = 0x0040
+	mWheel       = 0x0800
+	mAbsolute    = 0x8000
+	mVirtualDesk = 0x4000 // MOUSEEVENTF_VIRTUALDESK — coords span all monitors
 )
 
 // keybd_event flags
@@ -57,8 +59,8 @@ var extendedVK = map[uint16]bool{
 	0x23: true, 0x24: true, // End, Home
 	0x25: true, 0x26: true, 0x27: true, 0x28: true, // arrows
 	0x2D: true, 0x2E: true, // Insert, Delete
-	0x2C: true, // PrintScreen
-	0x90: true, // NumLock
+	0x2C: true,             // PrintScreen
+	0x90: true,             // NumLock
 	0xA3: true, 0xA5: true, // right Ctrl, right Alt
 	0x5B: true, 0x5C: true, // left/right Win (GUI)
 	0xAD: true, 0xAE: true, 0xAF: true, // volume mute/down/up
@@ -66,10 +68,13 @@ var extendedVK = map[uint16]bool{
 	0xA6: true, 0xA7: true, // browser back/forward
 }
 
-// GetSystemMetrics indices
+// GetSystemMetrics indices.
+// Virtual screen = bounding box of all monitors (origin can be negative).
 const (
-	smCXScreen = 0
-	smCYScreen = 1
+	smXVirtualScreen  = 76
+	smYVirtualScreen  = 77
+	smCXVirtualScreen = 78
+	smCYVirtualScreen = 79
 )
 
 // MapVirtualKey map types
@@ -79,10 +84,10 @@ const (
 
 // Window messages for monitor power control
 const (
-	wmSysCommand   = 0x0112
-	scMonitorPower = 0xF170
-	scMonitorOff   = 2
-	hwndBroadcast  = 0xFFFF
+	wmSysCommand    = 0x0112
+	scMonitorPower  = 0xF170
+	scMonitorOff    = 2
+	hwndBroadcast   = 0xFFFF
 	smtoAbortIfHung = 0x0008
 )
 
@@ -98,14 +103,12 @@ func hasConsole() bool {
 	return h != 0
 }
 
-func screenW() int {
-	r, _, _ := procGetSysMet.Call(smCXScreen)
-	return int(r)
-}
-
-func screenH() int {
-	r, _, _ := procGetSysMet.Call(smCYScreen)
-	return int(r)
+// sysMetric returns a GetSystemMetrics value as a signed int. The virtual-screen
+// origin can be negative (monitors to the left of / above the primary), so we
+// must sign-extend the 32-bit return rather than treating it as unsigned.
+func sysMetric(index uintptr) int {
+	r, _, _ := procGetSysMet.Call(index)
+	return int(int32(r))
 }
 
 func mapVirtualKey(vk uint16) uint16 {
@@ -120,11 +123,15 @@ func mouseMoveRelative(dx, dy int) {
 	procMouseEv.Call(mMove, uintptr(dx), uintptr(dy), 0, 0)
 }
 
-// mouseMoveAbsolute moves the cursor to (x, y) in pixels.
+// mouseMoveAbsolute moves the cursor to (x, y) in pixels. Coordinates are
+// normalized against the full virtual desktop (all monitors), so positions on
+// secondary screens land correctly instead of being clamped to the primary one.
 func mouseMoveAbsolute(x, y int) {
-	nx := uintptr((x * 65535) / max(screenW()-1, 1))
-	ny := uintptr((y * 65535) / max(screenH()-1, 1))
-	procMouseEv.Call(mMove|mAbsolute, nx, ny, 0, 0)
+	originX := sysMetric(smXVirtualScreen)
+	originY := sysMetric(smYVirtualScreen)
+	nx := uintptr(((x - originX) * 65535) / max(sysMetric(smCXVirtualScreen)-1, 1))
+	ny := uintptr(((y - originY) * 65535) / max(sysMetric(smCYVirtualScreen)-1, 1))
+	procMouseEv.Call(mMove|mAbsolute|mVirtualDesk, nx, ny, 0, 0)
 }
 
 // mouseButtonFlags returns the (down, up) mouse_event flags for a named button.
@@ -179,14 +186,14 @@ var vkAliases = map[string]uint16{
 	"ctrl": 0x11, "control": 0x11,
 	"alt": 0x12, "menu": 0x12,
 	"shift": 0x10,
-	"win": 0x5B, "super": 0x5B, "meta": 0x5B, "cmd": 0x5B, "windows": 0x5B,
+	"win":   0x5B, "super": 0x5B, "meta": 0x5B, "cmd": 0x5B, "windows": 0x5B,
 	// editing / navigation
 	"enter": 0x0D, "return": 0x0D,
 	"esc": 0x1B, "escape": 0x1B,
-	"tab": 0x09,
+	"tab":       0x09,
 	"backspace": 0x08, "bs": 0x08, "back": 0x08,
 	"space": 0x20,
-	"del": 0x2E, "delete": 0x2E,
+	"del":   0x2E, "delete": 0x2E,
 	"insert": 0x2D, "ins": 0x2D,
 	"home": 0x24, "end": 0x23,
 	"pageup": 0x21, "pgup": 0x21,
@@ -272,7 +279,9 @@ func tapChord(vks []uint16) {
 
 // --- Text input ---
 
-// typeText types a Unicode string via the KEYEVENTF_UNICODE path.
+// typeText types a Unicode string via the KEYEVENTF_UNICODE path. wParam is a
+// 16-bit UTF-16 code unit, so runes outside the BMP (emoji, etc.) must be sent
+// as a surrogate pair — one keybd_event per code unit — rather than truncated.
 func typeText(s string) {
 	for len(s) > 0 {
 		r, size := utf8.DecodeRuneInString(s)
@@ -280,8 +289,10 @@ func typeText(s string) {
 			s = s[size:]
 			continue
 		}
-		procKeybdEv.Call(0, uintptr(r), kUnicode|kScan, 0)
-		procKeybdEv.Call(0, uintptr(r), kUnicode|kScan|kUp, 0)
+		for _, u := range utf16.Encode([]rune{r}) {
+			procKeybdEv.Call(0, uintptr(u), kUnicode|kScan, 0)
+			procKeybdEv.Call(0, uintptr(u), kUnicode|kScan|kUp, 0)
+		}
 		s = s[size:]
 	}
 }
