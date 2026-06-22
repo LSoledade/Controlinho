@@ -1,7 +1,7 @@
 # Empacotamento MSIX (Microsoft Store)
 
-Artefatos e passos para gerar a build **store** do PC Remote como pacote **MSIX
-full-trust**. Plano completo: [`../MIGRACAO-MICROSOFT-STORE.md`](../MIGRACAO-MICROSOFT-STORE.md).
+Artefatos e passos para gerar a build **store** do Controlinho como pacote **MSIX
+full-trust**. Veja também a [listagem da Store](STORE-LISTING.md) e a [política de privacidade](../PRIVACY.md).
 
 ## O que muda na build `store`
 

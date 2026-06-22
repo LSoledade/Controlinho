@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds the PC Remote MSIX package (Microsoft Store / sideload).
+  Builds the Controlinho MSIX package (Microsoft Store / sideload).
 
 .DESCRIPTION
   1. Compiles the store-tagged binary (no console; the tray is the UI).

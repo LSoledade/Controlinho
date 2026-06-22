@@ -132,11 +132,11 @@ or a termination signal, then runs graceful shutdown.
   `manifest.webmanifest`, icons) requires a rebuild to take effect.
 - `sw.js` is served `Cache-Control: no-cache` and the manifest with an explicit content type;
   Chrome silently drops installability if these are wrong (see `serveTyped` in `main.go`).
-- `MIGRACAO-MICROSOFT-STORE.md` tracks the MSIX Store migration. **Phases 1 (code) and 2 (packaging)
-  have landed** behind the `store` build tag (see `packaging/`). The MSIX builds (`build-msix.ps1`),
-  installs/runs locally (`build-msix-local.ps1`, dev-mode register), and the WinRT `StartupTask` toggle
-  is **verified** (`verify-startuptask.ps1`: Disabled→Enabled→Disabled under package identity). What
-  remains is manual: Partner Center account/name, privacy policy, signing+submission.
+- **MSIX / Microsoft Store** support lives behind the `store` build tag (see `packaging/`). The MSIX
+  builds (`build-msix.ps1`), installs/runs locally (`build-msix-local.ps1`, dev-mode register), and the
+  WinRT `StartupTask` toggle is **verified** (`verify-startuptask.ps1`: Disabled→Enabled→Disabled under
+  package identity). The app is **submitted to the Store** as product "Controlinho" (Store ID
+  `9NWT7X0QSGBJ`); the standalone `.exe` distribution stays supported in parallel.
 - **WinRT from PowerShell gotcha:** `[System.WindowsRuntimeSystemExtensions]` (the `AsTask` that awaits
   a WinRT `IAsyncOperation`) does NOT resolve in Windows PowerShell 5.1 until `System.Runtime.WindowsRuntime`
   is loaded — `install_store.go`'s `psPreamble` force-loads it. The StartupTask API also needs **package

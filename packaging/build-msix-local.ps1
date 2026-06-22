@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Registers the `store` build of PC Remote locally for TESTING -- in particular the
+  Registers the `store` build of Controlinho locally for TESTING -- in particular the
   WinRT StartupTask auto-start, which only works with package identity (it cannot be
   exercised from a bare .exe).
 
@@ -62,9 +62,9 @@ if (-not $NoLaunch) {
 
 Write-Host ""
 Write-Host "Check:"
-Write-Host "  - System tray: 'PC Remote' icon."
+Write-Host "  - System tray: 'Controlinho' icon."
 Write-Host "  - Connect / PIN page: http://127.0.0.1:8080/qr"
 Write-Host "  - StartupTask (Option A): in the tray, toggle 'Iniciar com o Windows',"
-Write-Host "    then confirm in Task Manager > Startup (PC Remote: Enabled/Disabled)."
+Write-Host "    then confirm in Task Manager > Startup (Controlinho: Enabled/Disabled)."
 Write-Host ""
 Write-Host "Remove:  Get-AppxPackage *Controlinho* | Remove-AppxPackage"
