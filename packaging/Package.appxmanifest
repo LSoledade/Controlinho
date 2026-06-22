@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  PC Remote — MSIX (Microsoft Store) manifest. Full-trust desktop app.
+  Controlinho (PC Remote) — MSIX (Microsoft Store) manifest. Full-trust desktop app.
 
   Build it with:  go build -tags store -ldflags "-s -w -H windowsgui" -o pkg\pc-remote.exe .
   (see packaging/build-msix.ps1)
 
-  BEFORE SUBMITTING, fill in from Partner Center (after reserving the app name):
-    - Identity/Name        → your reserved package Identity Name
-    - Identity/Publisher   → "CN=<your publisher GUID>"
-    - PublisherDisplayName → your registered publisher display name
-  Local sideload testing: Identity/Publisher must equal the Subject of the cert you
-  sign with (e.g. CN=PCRemoteTest), and the package must be signed (the Store signs
-  it for you on ingestion, so signing is only for local testing — see build-msix.ps1).
+  Identity below is filled with the real Partner Center values for this product:
+    Store product : Controlinho  (Store ID 9NWT7X0QSGBJ)
+    PFN           : LeonardoSoledadeCosta.Controlinho_x60079dmz10h4
+  Properties/DisplayName MUST equal a name reserved in Partner Center ("Controlinho").
+  Do NOT sign for the Store — Partner Center signs on ingestion. (Local sideload uses
+  dev-mode register instead; see build-msix-local.ps1.)
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -20,14 +19,14 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap uap5 rescap">
 
-  <Identity Name="SeuPublisher.PCRemote"
-            Publisher="CN=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+  <Identity Name="LeonardoSoledadeCosta.Controlinho"
+            Publisher="CN=E7EBBC8D-793E-4994-A18A-098E2B3BB7EE"
             Version="2.2.0.0"
             ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>PC Remote</DisplayName>
-    <PublisherDisplayName>Seu Nome</PublisherDisplayName>
+    <DisplayName>Controlinho</DisplayName>
+    <PublisherDisplayName>Leonardo Soledade Costa</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -46,7 +45,7 @@
                  Executable="pc-remote.exe"
                  EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="PC Remote"
+        DisplayName="Controlinho"
         Description="Controle o PC pelo celular na rede local"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -61,7 +60,7 @@
                         EntryPoint="Windows.FullTrustApplication">
           <uap5:StartupTask TaskId="PCRemoteStartup"
                             Enabled="false"
-                            DisplayName="PC Remote" />
+                            DisplayName="Controlinho" />
         </uap5:Extension>
       </Extensions>
     </Application>

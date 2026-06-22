@@ -48,7 +48,7 @@ Copy-Item "$root\packaging\Assets" "$root\pkg\Assets" -Recurse -Force
 Write-Host "Registering (Add-AppxPackage -Register)..."
 Add-AppxPackage -Register "$root\pkg\AppxManifest.xml"
 
-$pkg = Get-AppxPackage -Name "*PCRemote*" | Select-Object -First 1
+$pkg = Get-AppxPackage -Name "*Controlinho*" | Select-Object -First 1
 if (-not $pkg) { throw "register failed: package not found" }
 Write-Host "Installed: $($pkg.PackageFullName)"
 $aumid = "$($pkg.PackageFamilyName)!PCRemote"
@@ -67,4 +67,4 @@ Write-Host "  - Connect / PIN page: http://127.0.0.1:8080/qr"
 Write-Host "  - StartupTask (Option A): in the tray, toggle 'Iniciar com o Windows',"
 Write-Host "    then confirm in Task Manager > Startup (PC Remote: Enabled/Disabled)."
 Write-Host ""
-Write-Host "Remove:  Get-AppxPackage *PCRemote* | Remove-AppxPackage"
+Write-Host "Remove:  Get-AppxPackage *Controlinho* | Remove-AppxPackage"

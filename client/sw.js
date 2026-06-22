@@ -1,4 +1,4 @@
-// PC Remote service worker.
+// Controlinho service worker.
 //
 // Goal: make the PWA installable AND load offline (the UI shell keeps working
 // even if the phone briefly drops Wi-Fi; only the live commands need the socket).

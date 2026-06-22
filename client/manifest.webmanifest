@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "PC Remote",
-  "short_name": "PC Remote",
+  "name": "Controlinho",
+  "short_name": "Controlinho",
   "description": "Controle o PC pelo celular: trackpad, mídia, teclado e energia.",
   "lang": "pt-BR",
   "dir": "ltr",

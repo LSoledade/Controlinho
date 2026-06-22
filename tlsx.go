@@ -32,7 +32,7 @@ import (
 const (
 	caCertName   = "pc-remote-ca.crt"
 	caKeyName    = "pc-remote-ca.key"
-	caCommonName = "PC Remote Local CA"
+	caCommonName = "Controlinho Local CA"
 )
 
 // leafRenewWindow is how close to expiry we re-mint the leaf. Well inside the
@@ -178,7 +178,7 @@ func mintLeaf(caCert *x509.Certificate, caKey *ecdsa.PrivateKey, ips []net.IP, d
 	expiry := now.Add(397 * 24 * time.Hour) // <398d keeps strict clients (Chrome) happy
 	leaf := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: hostnameOr("pc-remote"), Organization: []string{"PC Remote"}},
+		Subject:               pkix.Name{CommonName: hostnameOr("pc-remote"), Organization: []string{"Controlinho"}},
 		NotBefore:             now.Add(-1 * time.Hour),
 		NotAfter:              expiry,
 		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

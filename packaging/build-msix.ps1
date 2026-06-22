@@ -25,7 +25,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$OutMsix = "PCRemote.msix",
+  [string]$OutMsix = "Controlinho.msix",
   [switch]$Sign,
   [string]$PfxPath,
   [System.Security.SecureString]$PfxPassword

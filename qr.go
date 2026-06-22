@@ -165,7 +165,7 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 {{if not .Entries}}<meta http-equiv="refresh" content="5">{{end}}
-<title>PC Remote — Conectar o celular</title>
+<title>Controlinho — Conectar o celular</title>
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
@@ -222,7 +222,7 @@ var qrPageTmpl = template.Must(template.New("qr").Parse(`<!DOCTYPE html>
   <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor"/><path fill="none" stroke="currentColor" d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
 </defs></svg>
 <h1><svg class="ico"><use href="#i-monitor"/></svg> Conectar o celular</h1>
-<div class="ver">PC Remote {{.Version}} — aponte a câmera para um QR code</div>
+<div class="ver">Controlinho {{.Version}} — aponte a câmera para um QR code</div>
 {{if .Token}}<div class="pin">PIN (para digitar o IP na mão): <b>{{.Token}}</b></div>{{end}}
 {{if .Entries}}
 <div class="wrap">

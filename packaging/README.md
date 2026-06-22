@@ -78,12 +78,12 @@ verificar o auto-início **sem clicar na bandeja**:
 Esse helper roda a mesma API WinRT que o [install_store.go](../install_store.go) usa,
 sob a identidade do pacote (via `Invoke-CommandInDesktopPackage`). **Verificado:**
 `Disabled → Enabled → Disabled`. Remover o pacote de teste:
-`Get-AppxPackage *PCRemote* | Remove-AppxPackage`.
+`Get-AppxPackage *Controlinho* | Remove-AppxPackage`.
 
 ## Instalar localmente a partir do `.msix` assinado (sideload)
 
 ```powershell
-Add-AppxPackage -Path .\PCRemote.msix      # requer o cert de teste confiado na maquina
+Add-AppxPackage -Path .\Controlinho.msix   # requer o cert de teste confiado na maquina
 ```
 
 ## ✅ Checklist de verificação (antes de submeter)

@@ -24,8 +24,8 @@ param([switch]$Enable, [switch]$Disable)
 
 $ErrorActionPreference = "Stop"
 
-$pkg = Get-AppxPackage -Name "*PCRemote*" | Select-Object -First 1
-if (-not $pkg) { throw "PC Remote is not installed. Run build-msix-local.ps1 first." }
+$pkg = Get-AppxPackage -Name "*Controlinho*" | Select-Object -First 1
+if (-not $pkg) { throw "Controlinho is not installed. Run build-msix-local.ps1 first." }
 $pfn = $pkg.PackageFamilyName
 
 $out = Join-Path $env:TEMP "pcr_verify_startuptask.txt"

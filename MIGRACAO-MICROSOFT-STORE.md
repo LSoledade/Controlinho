@@ -281,7 +281,7 @@ Isolar o código específico de Store/desktop por **build tags** ou pasta de pac
 **Fase 2 — Empacotar** (✅ feita e validada localmente)
 - [x] `gen_icons.go` estendido para os assets da Store ([gen_icons.go](gen_icons.go) → `packaging/Assets/`)
 - [x] `Package.appxmanifest` escrito ([packaging/Package.appxmanifest](packaging/Package.appxmanifest))
-- [x] Pipeline `go build -tags store` → `makeappx` ([packaging/build-msix.ps1](packaging/build-msix.ps1)) — **`PCRemote.msix` gerado (4,3 MB)**
+- [x] Pipeline `go build -tags store` → `makeappx` ([packaging/build-msix.ps1](packaging/build-msix.ps1)) — **`Controlinho.msix` gerado (~4,3 MB)** com a identidade real (Store ID 9NWT7X0QSGBJ)
 - [x] Teste local via Modo de Desenvolvedor ([packaging/build-msix-local.ps1](packaging/build-msix-local.ps1)): app instala, sobe `:8080`/`:8443`, serve `/info`, token OK
 - [x] **StartupTask verificado** ([packaging/verify-startuptask.ps1](packaging/verify-startuptask.ps1)): `Disabled → Enabled → Disabled` sob identidade de pacote
 

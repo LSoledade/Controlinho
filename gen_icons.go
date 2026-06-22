@@ -1,6 +1,6 @@
 //go:build ignore
 
-// Icon generator for the PC Remote PWA.
+// Icon generator for the Controlinho PWA.
 // Produces client/icon-192.png, client/icon-512.png and client/icon-maskable-512.png.
 // Run with:  go run gen_icons.go
 //
@@ -191,7 +191,7 @@ func writeICO(path string, sizes []int) error {
 	return os.WriteFile(path, buf.Bytes(), 0644)
 }
 
-// drawIcon renders the PC Remote glyph into a size×size canvas.
+// drawIcon renders the Controlinho glyph into a size×size canvas.
 // maskable=true uses a background that fills the whole canvas (safe zone for maskable).
 func drawIcon(size int, maskable bool) *canvas {
 	c := newCanvas(size, size)

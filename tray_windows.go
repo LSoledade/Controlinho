@@ -27,8 +27,8 @@ func trayOnReady(httpAddr string) {
 	if ico, err := clientFS.ReadFile("client/icon.ico"); err == nil {
 		systray.SetIcon(ico)
 	}
-	systray.SetTitle("PC Remote")
-	systray.SetTooltip("PC Remote — controle do PC pelo celular")
+	systray.SetTitle("Controlinho")
+	systray.SetTooltip("Controlinho — controle do PC pelo celular")
 
 	mOpen := systray.AddMenuItem("Abrir página de conexão", "Mostra os QR codes para parear o celular")
 	systray.AddSeparator()

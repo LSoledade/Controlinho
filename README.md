@@ -1,4 +1,4 @@
-# 🖥️ PC Remote
+# 🖥️ Controlinho
 
 > **v2.1.0**
 
