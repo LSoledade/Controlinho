@@ -45,7 +45,7 @@ As ações (mouse, teclado, energia) são executadas direto na API do Windows vi
 
 ## Por que HTTPS? (e por que isso é necessário no Android)
 
-Para o Chrome no Android oferecer **"Instalar app"** e registrar o service worker, a página precisa estar num **contexto seguro** (HTTPS confiável). A exceção `localhost` **não** vale para um IP de LAN tipo `192.168.0.70` — sobre `http://` o Android não instala como app de verdade.
+Para o Chrome no Android oferecer **"Instalar app"** e registrar o service worker, a página precisa estar num **contexto seguro** (HTTPS confiável). A exceção `localhost` **não** vale para um IP de LAN tipo `192.168.x.x` — sobre `http://` o Android não instala como app de verdade.
 
 A solução, sem depender de nuvem ou serviço de terceiros, é a mesma técnica do [`mkcert`](https://github.com/FiloSottile/mkcert):
 
@@ -87,10 +87,12 @@ Quando você roda o `pc-remote.exe` **com console** (run manual), ele:
 - abre automaticamente a **página de conexão** no navegador do PC (`http://127.0.0.1:8080/qr`), e
 - desenha um **QR Code no próprio terminal**.
 
-A página mostra **dois QRs por rede** (Wi-Fi local e Tailscale), já com o IP certo embutido:
+A página mostra um **card por rede detectada** (Wi-Fi local e, se houver, Tailscale), cada um com **dois QRs** e o IP certo já embutido:
 
-- **QR amarelo (1 · primeira vez)** → abre o setup HTTP para instalar o certificado
+- **QR amarelo (1 · primeira vez)** → abre o setup HTTP, que mostra o assistente de instalação do certificado
 - **QR verde (2 · já instalei)** → abre direto o app seguro (HTTPS), **com o PIN de pareamento já embutido**
+
+Na maioria dos PCs (sem Tailscale) aparece **um card com dois QRs**; com Tailscale ativo, dois cards.
 
 Aponte a câmera do celular e siga. Se preferir digitar o IP na mão, os endereços estão logo abaixo de cada QR — nesse caso informe também o **PIN** mostrado no topo da página (em **⚙ Ajustes → PIN**). (Rodando escondido pelo Task Scheduler não há console, então nada abre sozinho — acesse `http://127.0.0.1:8080/qr` no PC quando quiser. Ou simplesmente **rode o `pc-remote.exe` de novo**: detectando que já há uma instância ativa, ele apenas abre essa página de conexão no navegador em vez de tentar subir de novo.)
 
@@ -100,18 +102,18 @@ Aponte a câmera do celular e siga. Se preferir digitar o IP na mão, os endere�
 
 1. **No PC**, abra o **Controlinho** (Store) ou rode o `pc-remote.exe` (standalone). Com console, ele mostra os endereços e abre a página de QR:
    ```
-   phone setup:  http://192.168.0.70:8080   →  install the CA, then open the HTTPS link
-   phone app:    https://192.168.0.70:8443
+   phone setup:  http://SEU_IP:8080   →  install the CA, then open the HTTPS link
+   phone app:    https://SEU_IP:8443
    connect page (QR): http://127.0.0.1:8080/qr
    ```
 
-2. **No celular**, escaneie o **QR amarelo** (ou abra `http://192.168.0.70:8080`). O app já funciona para controle, e aparece um banner **"📲 Instalar como app"**.
+2. **No celular**, escaneie o **QR amarelo** (ou abra `http://SEU_IP:8080`). Como essa origem HTTP não é um contexto seguro (não dá para controlar o PC nem instalar como app por ela), aparece um **assistente de configuração inicial** em tela cheia — só na primeira vez neste aparelho — com 3 passos.
 
-3. Toque em **"1 · Baixar certificado"** (baixa `pc-remote-ca.crt`).
+3. **Passo 1 — Baixar o certificado:** toque em **"Baixar certificado"** (baixa `pc-remote-ca.crt`).
 
-4. Instale a CA: **Ajustes → Segurança → Mais ajustes → Instalar certificado → Certificado CA** (o caminho varia por fabricante; procure por "Instalar certificado" / "Credenciais"). O Android deve avisar que é um **certificado CA** — se ele falar em "certificado de usuário", algo deu errado.
+4. **Passo 2 — Instalar no aparelho:** instale a CA em **Ajustes → Segurança → Mais ajustes → Instalar certificado → Certificado CA** (o caminho varia por fabricante; procure por "Instalar certificado" / "Credenciais"). O Android deve avisar que é um **certificado CA** — se ele falar em "certificado de usuário", algo deu errado. De volta ao assistente, toque em **"Já instalei — verificar"**: ele testa a confiança na hora (tenta carregar um recurso HTTPS do PC) e, se a CA estiver confiável, libera o passo 3. Se ainda não detectar, confira a instalação e tente de novo.
 
-5. Volte ao app e toque em **"2 · Abrir versão segura"** (vai para `https://192.168.0.70:8443`). Agora carrega com cadeado, sem aviso.
+5. **Passo 3 — Abrir o app seguro:** toque em **"Abrir app seguro"** (vai para `https://SEU_IP:8443`, com o **PIN de pareamento já embutido**). Agora carrega com cadeado, sem aviso. *(Se você já tinha configurado antes, o assistente detecta a confiança sozinho ao abrir e pula direto para este passo; o atalho **"Já configurei — abrir versão segura"** no rodapé também leva direto.)*
 
 6. No menu do Chrome → **"Instalar app" / "Adicionar à tela inicial"**. Vira um ícone em tela cheia, sem barra do navegador.
 
@@ -121,7 +123,7 @@ Aponte a câmera do celular e siga. Se preferir digitar o IP na mão, os endere�
 
 ## Uso
 
-- **Configurar o IP:** toque em **⚙ Ajustes** e informe `host:porta` (ex.: `192.168.0.70:8443`) e o **PIN** (mostrado na página `/qr`; ao escanear o QR ele já vem preenchido). Fica salvo no `localStorage`. No mesmo painel dá pra ajustar **sensibilidade do cursor**, **velocidade de rolagem**, **rolagem natural** (inverte a direção do scroll), **"Pressionar Enter ao enviar texto"** e ligar/desligar a **vibração** (haptics ao tocar).
+- **Configurar o IP:** toque em **⚙ Ajustes** e informe `host:porta` (ex.: `SEU_IP:8443`) e o **PIN** (mostrado na página `/qr`; ao escanear o QR ele já vem preenchido). Fica salvo no `localStorage`. No mesmo painel dá pra ajustar **sensibilidade do cursor**, **velocidade de rolagem**, **rolagem natural** (inverte a direção do scroll), **"Pressionar Enter ao enviar texto"** e ligar/desligar a **vibração** (haptics ao tocar).
 - **Trackpad:** 1 dedo move · toque = clique esquerdo · toque com 2 dedos = clique direito · 2 dedos arrastando = rolar. O movimento tem **aceleração**: gestos lentos são precisos e flicks rápidos percorrem mais tela. O botão **✊ Arrastar** segura o botão esquerdo: ligue, toque e mova para arrastar janelas/seleções; solte o dedo para soltar.
 
 ### Argumentos

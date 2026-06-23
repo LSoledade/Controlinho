@@ -18,14 +18,24 @@
 // on breaking changes to the cached static assets. The new SW takes over on next
 // navigation (clients.claim) so you don't have to close every tab.
 
-const CACHE = "pcremote-v5";
+const CACHE = "pcremote-v6";
 const SHELL = [
   "./",
   "./index.html",
+  "./style.css",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
-  "./icon-maskable-512.png"
+  "./icon-maskable-512.png",
+  "./js/app.js",
+  "./js/state.js",
+  "./js/ui.js",
+  "./js/connection.js",
+  "./js/trackpad.js",
+  "./js/controls.js",
+  "./js/settings.js",
+  "./js/pwa.js",
+  "./js/setup.js"
 ];
 
 self.addEventListener("install", (event) => {

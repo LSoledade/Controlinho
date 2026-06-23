@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -130,6 +131,12 @@ func init() {
 	}
 	clientRoot = http.FS(sub)
 	fileServer = http.FileServer(clientRoot)
+
+	// Force correct MIME types for the ES modules and stylesheet served by the file
+	// server. Windows derives these from the registry, which can return text/plain
+	// for .js — and the browser rejects an ES module under strict MIME checking.
+	_ = mime.AddExtensionType(".js", "text/javascript; charset=utf-8")
+	_ = mime.AddExtensionType(".css", "text/css; charset=utf-8")
 }
 
 // handleClient serves the embedded PWA. "/" and any path that doesn't map to a
