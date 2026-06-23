@@ -216,6 +216,64 @@
     display: flex; align-items: center; gap: 9px; }
   .toast .ico { width: 18px; height: 18px; color: var(--accent); }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+  /* first-run setup wizard (insecure HTTP origin — the phone's entry point) */
+  .setup { position: fixed; inset: 0; z-index: 100; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    background: radial-gradient(120% 55% at 50% 0%, #131a2b 0%, var(--bg) 58%), var(--bg);
+    padding: calc(30px + var(--safe-t)) 20px calc(28px + var(--safe-b)); }
+  .setup[hidden] { display: none; }
+  .setup-inner { max-width: 440px; margin: 0 auto; }
+  .setup-head { text-align: center; margin-bottom: 24px; }
+  .setup-logo { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #1c2536, var(--bg-1)); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .setup-logo .ico { width: 34px; height: 34px; color: var(--accent); }
+  .setup-head h1 { margin: 0; font-size: 23px; font-weight: 680; letter-spacing: -.01em; }
+  .setup-sub { margin: 5px 0 0; color: var(--fg-dim); font-size: 13.5px; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .step { display: flex; gap: 14px; background: var(--bg-1); border: 1px solid var(--border-soft);
+    border-radius: var(--r-lg); padding: 16px; transition: border-color .2s, opacity .2s, background .2s; }
+  .step.locked { opacity: .5; }
+  .step.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(91,157,255,.22), var(--shadow-sm); }
+  .step.done { border-color: rgba(68,208,123,.35); }
+  .step-no { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; font-weight: 700; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; color: var(--fg-dim);
+    background: var(--bg-3); border: 1px solid var(--border); }
+  .step.active .step-no { background: var(--accent); border-color: transparent; color: #fff; }
+  .step.done .step-no { background: var(--good); border-color: transparent; color: #06210f; }
+  .step-no .ico { width: 17px; height: 17px; }
+  .step-body { flex: 1 1 auto; min-width: 0; }
+  .step-body h3 { margin: 2px 0 5px; font-size: 15.5px; font-weight: 640; }
+  .step-body > p { margin: 0 0 12px; color: var(--fg-dim); font-size: 13px; line-height: 1.5; }
+  .howto { margin: 0 0 12px; padding: 11px 13px; background: var(--bg-2); border: 1px solid var(--border-soft);
+    border-radius: var(--r-sm); font-size: 12.5px; color: var(--fg-dim); line-height: 1.65; }
+  .howto[hidden] { display: none; }
+  .howto b { color: var(--fg); font-weight: 600; }
+  .howto .path { color: var(--accent); font-weight: 600; }
+
+  a.btn, button.btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    text-decoration: none; min-height: 46px; padding: 0 14px; border-radius: var(--r); font-size: 14px;
+    font-weight: 600; cursor: pointer; border: 1px solid var(--border-soft); background: var(--bg-2); color: var(--fg);
+    transition: transform .06s, background .12s, box-shadow .12s, opacity .2s; }
+  .btn:active { transform: scale(.98); }
+  .btn .ico { width: 19px; height: 19px; }
+  .btn.primary { background: linear-gradient(180deg, var(--accent), var(--accent-press)); border-color: transparent;
+    color: #fff; box-shadow: 0 4px 14px rgba(91,157,255,.3); }
+  .btn[aria-disabled="true"] { opacity: .4; pointer-events: none; box-shadow: none; background: var(--bg-2); color: var(--fg-faint); }
+
+  .setup-foot { margin-top: 20px; text-align: center; }
+  .trust { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600;
+    padding: 6px 12px; border-radius: 999px; }
+  .trust .ico { width: 14px; height: 14px; }
+  .trust.unknown { color: var(--fg-dim); background: var(--bg-2); border: 1px solid var(--border-soft); }
+  .trust.checking { color: var(--warn); background: rgba(255,194,75,.12); }
+  .trust.ok { color: var(--good); background: rgba(68,208,123,.14); }
+  .trust.bad { color: var(--danger); background: rgba(255,107,107,.14); }
+  .setup-skip { display: block; margin: 14px auto 0; background: none; border: none; min-height: 0; padding: 6px;
+    color: var(--fg-faint); font-size: 12.5px; text-decoration: underline; cursor: pointer; }
+  @keyframes shake { 10%,90%{transform:translateX(-1px)} 30%,70%{transform:translateX(-4px)} 50%{transform:translateX(4px)} }
+  .shake { animation: shake .4s; }
 </style>
 </head>
 <body>
@@ -253,7 +311,63 @@
   <symbol id="i-mid-click" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="7" fill="none" stroke="currentColor"/><rect x="11" y="6" width="2" height="4" rx="1" fill="currentColor" stroke="none"/></symbol>
   <symbol id="i-move" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" d="M12 3l7 3v5c0 4.6-3 8.2-7 10-4-1.8-7-5.4-7-10V6z"/></symbol>
 </defs></svg>
+
+<!-- FIRST-RUN SETUP WIZARD (only on the insecure HTTP origin: the phone's entry point).
+     The plain-HTTP page can't control anything (no secure context, no token), so its whole
+     job is to get the local CA trusted and hand off to the HTTPS app. -->
+<div class="setup" id="setupWizard" hidden>
+  <div class="setup-inner">
+    <div class="setup-head">
+      <div class="setup-logo"><svg class="ico"><use href="#i-monitor"/></svg></div>
+      <h1>Controlinho</h1>
+      <p class="setup-sub">Configuração inicial — só na primeira vez neste aparelho</p>
+    </div>
+
+    <ol class="steps">
+      <li class="step" id="st1">
+        <div class="step-no" id="no1">1</div>
+        <div class="step-body">
+          <h3>Baixar o certificado</h3>
+          <p>Ele torna a conexão com o PC confiável neste celular — sem isso o navegador bloqueia o app.</p>
+          <a class="btn primary" id="caDownload" href="/ca.crt"><svg class="ico"><use href="#i-download"/></svg> Baixar certificado</a>
+        </div>
+      </li>
+      <li class="step locked" id="st2">
+        <div class="step-no" id="no2">2</div>
+        <div class="step-body">
+          <h3>Instalar no <span id="osName">aparelho</span></h3>
+          <div class="howto" id="howtoAndroid">
+            Quando o Android perguntar, escolha <b>Certificado CA</b> e confirme — ele avisa que pode monitorar a rede;
+            isso é esperado para um certificado local.
+            <br><br>Se nada abrir, vá em <span class="path">Ajustes → Segurança → Instalar certificado → Certificado CA</span>
+            e selecione o arquivo baixado.
+          </div>
+          <div class="howto" id="howtoIOS" hidden>
+            1. Permita o <b>perfil de configuração</b> ao baixar.
+            <br>2. Instale em <span class="path">Ajustes → Geral → VPN e Gerenciamento de Dispositivo</span>.
+            <br>3. Ative em <span class="path">Ajustes → Geral → Sobre → Confiança de Certificado</span>.
+          </div>
+          <button class="btn" id="checkTrust" type="button"><svg class="ico"><use href="#i-shield"/></svg> Já instalei — verificar</button>
+        </div>
+      </li>
+      <li class="step locked" id="st3">
+        <div class="step-no" id="no3">3</div>
+        <div class="step-body">
+          <h3>Abrir o app seguro</h3>
+          <p id="st3msg">Conclua os passos acima para liberar.</p>
+          <a class="btn primary" id="openSecure" href="#" aria-disabled="true"><svg class="ico"><use href="#i-lock"/></svg> Abrir app seguro</a>
+        </div>
+      </li>
+    </ol>
+
+    <div class="setup-foot">
+      <span id="trustState" class="trust unknown"><svg class="ico"><use href="#i-shield"/></svg><span>Certificado não detectado</span></span>
+      <button class="setup-skip" id="setupSkip" type="button">Já configurei — abrir versão segura</button>
+    </div>
+  </div>
+</div>
 
 <div class="topbar">
   <span class="brand">
@@ -264,17 +378,6 @@
   <button class="install-pill" id="installBtn" type="button"><svg class="ico"><use href="#i-download"/></svg> Instalar</button>
   <span class="chip" id="statusChip" role="button" tabindex="0" aria-label="Reconectar"><span id="dot" class="dot offline"></span><span id="statusText">desconectado</span></span>
   <button class="icon-btn" id="ipBtn" type="button" aria-label="Ajustes"><svg class="ico"><use href="#i-settings"/></svg></button>
-</div>
-
-<!-- INSTALL / HTTPS SETUP BANNER (only on the insecure HTTP origin) -->
-<div class="install-banner" id="installBanner">
-  <button class="close-x" id="bannerClose" type="button" aria-label="Fechar"><svg class="ico"><use href="#i-x"/></svg></button>
-  <div class="head"><svg class="ico"><use href="#i-phone"/></svg><h4>Instalar como app</h4></div>
-  <p>Para instalar no Android, o Chrome precisa de HTTPS confiável. Faça uma vez: baixe o certificado, instale em <b>Ajustes → Segurança → Instalar certificado → Certificado CA</b> e abra a versão segura.</p>
-  <div class="row">
-    <a id="bannerCa" href="/ca.crt"><svg class="ico"><use href="#i-download"/></svg> Certificado</a>
-    <a id="bannerHttps" class="primary" href="#"><svg class="ico"><use href="#i-lock"/></svg> Versão segura</a>
-  </div>
 </div>
 
 <!-- iOS INSTALL HINT (Safari has no beforeinstallprompt) -->
