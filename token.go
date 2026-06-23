@@ -36,7 +36,10 @@ const tokenLen = 10 // ~49 bits — overkill for LAN-only, trivial to type once
 func loadOrCreateToken(dir string) (string, error) {
 	path := filepath.Join(dir, tokenFile)
 	if b, err := os.ReadFile(path); err == nil {
-		if t := strings.TrimSpace(string(b)); t != "" {
+		// Canonicalize the stored secret so a hand-edited file (lowercase, dashes)
+		// still matches: validToken normalizes the input, so the secret must be
+		// normalized too or every correct PIN would silently fail.
+		if t := normalizeToken(string(b)); t != "" {
 			return t, nil
 		}
 	}
@@ -50,15 +53,28 @@ func loadOrCreateToken(dir string) (string, error) {
 	return t, nil
 }
 
-// newToken returns n random characters from tokenAlphabet.
+// newToken returns n random characters from tokenAlphabet. It uses rejection
+// sampling rather than a plain modulo so every glyph is equally likely: with a
+// 30-char alphabet, `byte % 30` would make the first 16 glyphs ~2× as frequent
+// and erode the ~49-bit claim.
 func newToken(n int) (string, error) {
+	// largest multiple of the alphabet length that fits in a byte (240 for 30)
+	const limit = 256 - 256%len(tokenAlphabet)
+	out := make([]byte, 0, n)
 	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	out := make([]byte, n)
-	for i, v := range buf {
-		out[i] = tokenAlphabet[int(v)%len(tokenAlphabet)]
+	for len(out) < n {
+		if _, err := rand.Read(buf); err != nil {
+			return "", err
+		}
+		for _, v := range buf {
+			if int(v) >= limit {
+				continue // reject the biased tail
+			}
+			out = append(out, tokenAlphabet[int(v)%len(tokenAlphabet)])
+			if len(out) == n {
+				break
+			}
+		}
 	}
 	return string(out), nil
 }

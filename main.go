@@ -22,6 +22,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gorilla/websocket"
 )
@@ -201,8 +202,12 @@ func serveIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 // runtime config shared with the client (so the UI can build the HTTPS link and
-// know whether the CA still needs installing).
-var httpsPortValue string
+// know whether the CA still needs installing). Both ports are set in main() and
+// read by qr.go's setupURL/appURL — colocated here so the data flow is in one place.
+var (
+	httpPortValue  string // ":8080"
+	httpsPortValue string // ":8443"
+)
 
 // handleInfo returns small runtime facts the PWA uses to bootstrap install.
 func handleInfo(w http.ResponseWriter, r *http.Request) {
@@ -341,8 +346,15 @@ func handleWS(w http.ResponseWriter, r *http.Request) {
 
 // dispatch decodes one frame (object or array) and runs each command.
 func dispatch(c *websocket.Conn, wmu *sync.Mutex, data []byte) {
-	var many []cmd
-	if err := json.Unmarshal(data, &many); err == nil && many != nil {
+	// Peek the first non-space byte to pick the decode path so the hot single-object
+	// path (mouse_move) isn't parsed as an array first and then re-parsed: '[' is a
+	// batch, anything else a single command.
+	if i := firstNonSpace(data); i >= 0 && data[i] == '[' {
+		var many []cmd
+		if err := json.Unmarshal(data, &many); err != nil {
+			log.Printf("ws: bad batch %q: %v", truncate(string(data), 120), err)
+			return
+		}
 		for i := range many {
 			runCmd(c, wmu, &many[i])
 		}
@@ -356,15 +368,35 @@ func dispatch(c *websocket.Conn, wmu *sync.Mutex, data []byte) {
 	runCmd(c, wmu, &one)
 }
 
+// firstNonSpace returns the index of the first non-JSON-whitespace byte, or -1.
+func firstNonSpace(b []byte) int {
+	for i, c := range b {
+		if c != ' ' && c != '\t' && c != '\n' && c != '\r' {
+			return i
+		}
+	}
+	return -1
+}
+
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
+	// Back off to a rune boundary so we never emit a split multibyte sequence
+	// into the log when an oversized/garbled frame is truncated.
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
 	return s[:n] + "…"
 }
 
-// runCmd executes a single command. Discrete actions reply with an ack; high-rate
-// movement events (mouse_move) are fire-and-forget to keep latency low.
+// runCmd executes a single command.
+//
+// Ack contract: this is an errors-only protocol. Most commands (mouse_click, key,
+// shortcut, type, volume, media) reply ONLY on failure (ok:false); the client just
+// watches for ok===false. ping and power are the two exceptions that also ack on
+// success, because the client waits on their result. High-rate movement events
+// (mouse_move/mouse_move_abs) never ack at all — fire-and-forget to keep latency low.
 func runCmd(c *websocket.Conn, wmu *sync.Mutex, m *cmd) {
 	reply := func(ok bool, msg string) {
 		wmu.Lock()
@@ -454,30 +486,43 @@ func runCmd(c *websocket.Conn, wmu *sync.Mutex, m *cmd) {
 
 // --- High-level action dispatch ---
 
+// volumeAction / mediaAction map the high-level action to a named key and resolve
+// it through vkFor, so the virtual-key codes live in exactly one place (vkAliases
+// in input_windows.go) instead of being re-hardcoded here.
 func volumeAction(action string) bool {
+	var key string
 	switch strings.ToLower(action) {
 	case "up":
-		pressKey(0xAF)
+		key = "volumeup"
 	case "down":
-		pressKey(0xAE)
+		key = "volumedown"
 	case "mute":
-		pressKey(0xAD)
+		key = "volumemute"
 	default:
 		return false
 	}
-	return true
+	return pressNamed(key)
 }
 
 func mediaAction(action string) bool {
-	var vk uint16
+	var key string
 	switch strings.ToLower(action) {
 	case "play_pause", "play", "pause":
-		vk = 0xB3
+		key = "media_play_pause"
 	case "next":
-		vk = 0xB0
+		key = "media_next"
 	case "prev", "previous":
-		vk = 0xB1
+		key = "media_prev"
 	default:
+		return false
+	}
+	return pressNamed(key)
+}
+
+// pressNamed resolves a named key and presses it, reporting whether it resolved.
+func pressNamed(key string) bool {
+	vk, ok := vkFor(key)
+	if !ok {
 		return false
 	}
 	pressKey(vk)

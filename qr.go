@@ -74,8 +74,6 @@ func isTailscale(ip string) bool {
 	return b >= 64 && b <= 127
 }
 
-var httpPortValue string // ":8080" — set in main
-
 // setupURL / appURL build the onboarding URLs for a given host. The app URL carries
 // the pairing token as ?k= so scanning the green QR pairs with zero friction; the
 // client stores it and presents it on the WebSocket. (The token alphabet is
